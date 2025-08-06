@@ -74,6 +74,9 @@ typedef enum {
 typedef struct {
     Vector3 position;
     Quaternion orientation;
+
+    bool isPositionValid;
+    bool isOrientationValid;
 } rlPose;
 
 //----------------------------------------------------------------------------------
@@ -88,21 +91,21 @@ RLAPI bool InitXr(); // returns true if successful, *must* be called after InitW
 RLAPI void CloseXr();
 
 // Session state
-RLAPI bool IsXrConnected();
-RLAPI bool IsXrFocused();
-RLAPI rlXrState GetXrState();
+RLAPI bool IsXrConnected();   // returns true after InitXr(), returns false after CloseXr() or a fatal XR error
+RLAPI bool IsXrFocused();     // returns true if the XR device is awake and displaying rendered frames
+RLAPI rlXrState GetXrState(); // returns the current XR session state
 
-// Space and Pose api
+// Spaces and Poses
 RLAPI rlPose GetViewPose(); // returns the pose of the users view (eg the position and orientation of the hmd in the wider refrence frame)
 RLAPI void SetXrPosition(Vector3 pos); // sets the offset of the _refrence_ frame, this offsets the entire play space (including the users camera / views) by [pos] allowing you to move the player though-out the virtual space
 RLAPI void SetXrOrientation(Quaternion quat);
 RLAPI rlPose GetXrPose(); // fetches the current refrence frame offsets
 
 // View Rendering
-RLAPI int BeginXrMode(); // returns the number of views that are provided by the xr runtime (returns 0 if rendering is not required by the runtime, eg. app is not visible to user)
-RLAPI void EndXrMode();
-RLAPI void BeginView(unsigned int index);
-RLAPI void EndView();
+RLAPI int BeginXrMode(); // returns the number of views that are requested by the xr runtime (returns 0 if rendering is not required by the runtime, eg. app is not visible to user)
+RLAPI void EndXrMode();  // end and submit frame, must be called even when 0 views are requested
+RLAPI void BeginView(unsigned int index); // begin view with index in range [0, request_count), a view is always rendered in 3D with an internal camera
+RLAPI void EndView();    // finish and submit view
 
 #if defined(__cplusplus)
 }
@@ -713,15 +716,19 @@ rlPose GetViewPose() {
     rlPose pose;
     pose.position = (Vector3){0.f, 0.f, 0.f};
     pose.orientation = (Quaternion){0.f, 0.f, 0.f, 1.f};
+    pose.isPositionValid = false;
+    pose.isOrientationValid = false;
 
     if (location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) {
         pose.position = (Vector3){location.pose.position.x, location.pose.position.y, location.pose.position.z};
         pose.position = Vector3Add(rlxr.refPosition, pose.position);
+        pose.isPositionValid = true;
     }
 
     if (location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) {
         pose.orientation = (Quaternion){location.pose.orientation.x, location.pose.orientation.y, location.pose.orientation.z, location.pose.orientation.w};
         pose.orientation = QuaternionMultiply(rlxr.refOrientation, pose.orientation);
+        pose.isOrientationValid = true;
     }
 
     return pose;
