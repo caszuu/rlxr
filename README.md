@@ -4,9 +4,9 @@
 Currently only session management and rendering APIs are implemented and only Windows and Linux (`Xlib` only) are supported with Android being a possibility in the future. While OpenGL 3.3 might work, it's definitely recommended to build `rlgl` against OpenGL 4.3 as some OpenXR runtimes might require it.
 
 Feature support:
-- [+] XR Fullscreen Session
-- [+] XR Rendering API
-- [+] View / Reference Pose API
+- [x] XR Fullscreen Session
+- [x] XR Rendering API
+- [x] View / Reference Pose API
 
 - [ ] Actions and ActionSets
 - [ ] XR Overlay Session (`XR_EXTX_overlay`)
