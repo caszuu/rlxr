@@ -20,13 +20,17 @@ As for other single-header libs, simply include it with a **single** translation
 ```c
 #include "raylib.h"
 
-...
-
 #define RLXR_IMPLEMENTATION
 #include "rlxr.h"
 ```
 
-On Linux, install the distros `openxr` equivalent package and link `-lGL -lX11 -lopenxr_loader` to your executable as dependencies. On Windows... good luck.
+To build a project with `rlxr` embedded, at least the OpenXR Loader will be required to be linked together with platform specific dependencies. OpenXR can be installed using your distros `openxr` package or with the OpenXR-SDK for Windows. A helper CMake script is present at the root of the repository that will find and link all dependencies for you.
+
+If you're using CMake for your project, simply clone the repo and link it with:
+```cmake
+add_subdirectory(rlxr)
+target_link_libraries(my_project PRIVATE rlxr)
+```
 
 ## API Cheatsheet
 

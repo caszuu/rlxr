@@ -11,7 +11,6 @@
     #include "raymath.h"
 #else
     #include "raylib.h"
-    #include "utils.h"
 #endif
 
 //----------------------------------------------------------------------------------
@@ -48,9 +47,15 @@
     #define RL_FREE(p)        free(p)
 #endif
 
+// Raylib TraceLog support
 #ifndef TRACELOG
-    #define TRACELOG(level, ...) (void)0
-    #define TRACELOGD(...) (void)0
+    #ifndef RLXR_SUPPORT_TRACELOG
+        #define TRACELOG(level, ...) (void)0
+        #define TRACELOGD(...) (void)0
+    #else
+        #define TRACELOG(level, ...) TraceLog(level, __VA_ARGS__)
+        #define TRACELOGD(...) TraceLog(LOG_DEBUG, __VA_ARGS__)
+    #endif
 #endif
 
 #ifndef RLXR_APP_NAME
