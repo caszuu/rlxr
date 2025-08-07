@@ -139,9 +139,7 @@ RLAPI void EndView();    // finish and submit view
     #undef Font
 
     // #define XR_USE_PLATFORM_WAYLAND
-    // #define GLFW_EXPOSE_NATIVE_WAYLAND
-    // #define GLFW_NATIVE_INCLUDE_NONE
-    // #include <GLFW/glfw3native.h>
+    // #include <wayland-client.h>
 #endif
 
 #include <openxr/openxr.h>
@@ -338,6 +336,17 @@ static int64_t rlxrChooseSwapchainFormat(int64_t preferred, bool fallback) {
     return format;
 }
 
+typedef union {
+
+#ifdef XR_USE_PLATFORM_XLIB
+    XrGraphicsBindingOpenGLXlibKHR xlib;
+#endif
+#ifdef XR_USE_PLATFORM_WAYLAND
+    XrGraphicsBindingOpenGLWaylandKHR wayland;
+#endif
+
+} rlxrGraphicsBindingOpenGLLinux;
+
 static bool rlxrInitSession() {
     // rlgl graphics binding
 
@@ -355,26 +364,42 @@ static bool rlxrInitSession() {
     //       currently supported platforms are:
     //         - GL/Win32 (fetching current WGL context)
     //         - GL/Xlib (fetching current GLX context)
-    //         - GL/Wayland (independent context?)
+    //         - GL/Wayland (independent context?, does not seem to be widely supported by runtimes, might require XR_MDNX_egl_enable)
 
 #ifdef XR_USE_PLATFORM_WIN32
-    XrGraphicsBindingOpenGLWin32KHR rlglInfo = {XR_TYPE_GRAPHICS_BINDING_OPENGL_WAYLAND_KHR};
+    XrGraphicsBindingOpenGLWin32KHR rlglInfo = {XR_TYPE_GRAPHICS_BINDING_OPENGL_WIN32_KHR};
     rlglInfo.hDC = wglGetCurrentDC();
     rlglInfo.HGLRC = wglGetCurrentContext();
-#endif
+
+    TRACELOG(LOG_INFO, "XR: Detected graphics binding: Win32");
+#else
+    rlxrGraphicsBindingOpenGLLinux rlglInfo;
 
 #ifdef XR_USE_PLATFORM_XLIB
-    XrGraphicsBindingOpenGLXlibKHR rlglInfo = {XR_TYPE_GRAPHICS_BINDING_OPENGL_XLIB_KHR};
-    rlglInfo.xDisplay = XOpenDisplay(NULL);
-    rlglInfo.glxContext = glXGetCurrentContext();
-    rlglInfo.glxDrawable = glXGetCurrentDrawable();
-#endif
+    if (GLXContext ctx = glXGetCurrentContext()) {
+        rlglInfo.xlib = (XrGraphicsBindingOpenGLXlibKHR){XR_TYPE_GRAPHICS_BINDING_OPENGL_XLIB_KHR};
+        rlglInfo.xlib.xDisplay = XOpenDisplay(NULL);
+        rlglInfo.xlib.glxContext = ctx;
+        rlglInfo.xlib.glxDrawable = glXGetCurrentDrawable();
 
-// #ifdef XR_USE_PLATFORM_WAYLAND
-//     XrGraphicsBindingOpenGLWaylandKHR rlglInfo{XR_TYPE_GRAPHICS_BINDING_OPENGL_WAYLAND_KHR};
-//     rlglInfo.display = glfwGetWaylandDisplay();
-// #endif
-    
+        TRACELOG(LOG_INFO, "XR: Detected graphics binding: Xlib");
+    } else
+#endif
+#ifdef XR_USE_PLATFORM_WAYLAND
+    if (struct wl_display *disp = wl_display_connect(NULL)) {
+        rlglInfo.wayland = (XrGraphicsBindingOpenGLWaylandKHR){XR_TYPE_GRAPHICS_BINDING_OPENGL_WAYLAND_KHR};
+        rlglInfo.wayland.display = disp;
+
+        TRACELOG(LOG_INFO, "XR: Detected graphics binding: Wayland");
+    } else
+#endif
+    {
+        TRACELOG(LOG_ERROR, "XR: No supported graphics platform detected");
+        return false;
+    }
+
+#endif // XR_USE_PLATFORM_WIN32
+
     // create session
     
     XrSessionCreateInfo sessionInfo = {XR_TYPE_SESSION_CREATE_INFO};
@@ -563,6 +588,8 @@ static bool rlxrInitSession() {
 
 bool InitXr() {
     if (rlxr.instance) return true;
+
+    memset(&rlxr, 0, sizeof(rlxr));
 
     if (!rlxrInitInstance()) return false;
     if (!rlxrInitSession()) return false;
