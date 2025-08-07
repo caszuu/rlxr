@@ -2,6 +2,7 @@
 #include "raymath.h"
 
 #define RLXR_IMPLEMENTATION
+#define SUPPORT_TRACELOG
 #include "rlxr.h"
 
 void drawScene() {
@@ -23,7 +24,9 @@ int main(void) {
 
     // Initialize the XR runtime and rlxr resources, exit if no XR runtime found
     bool success = InitXr();
-    assert(success);
+    if (!success) {
+        return -1;
+    }
 
     // Define the flatscreen camera to look into our 3d world
     Camera camera = { 0 };
@@ -36,15 +39,30 @@ int main(void) {
     // Position the XR play space and the player to the same as the flatscreen camera
     SetXrPosition((Vector3){ 0.0f, 1.5f, 1.5f });
 
-    // let the XR runtime pace the frame loop on its own (blocks in BeginXrMode)
+    // let the XR runtime pace the frame loop on its own (blocks in UpdateXr)
     SetTargetFPS(-1);
 
     while (!WindowShouldClose()) {
         // Update
         //----------------------------------------------------------------------------------
       
-        // Update internal XR event loop, this needs to be done periodically
+        // Update internal XR event loop, this needs to be done every frame
         UpdateXr();
+
+        // get the pose (position and rotation) of the XR hmd (usually the centroid between XR views above)
+        rlPose viewPose = GetXrViewPose();
+
+        // update flatscreen camera to mirror the XR hmd (if the hmd is being tracked)
+        if (viewPose.isPositionValid) {
+            camera.position = viewPose.position;
+        }
+
+        if (viewPose.isOrientationValid) {
+            // camera conversion snippet from https://github.com/FireFlyForLife/rlOpenXR/blob/2fd2433eec8a096dd67c26c94671c4976f9b7dd8/src/rlOpenXR.cpp#L869
+
+            camera.target = Vector3Add(Vector3RotateByQuaternion((Vector3){0.0f, 0.0f, -1.0f}, viewPose.orientation), viewPose.position);
+            camera.up = Vector3RotateByQuaternion((Vector3){0.0f, 1.0f, 0.0f}, viewPose.orientation);
+        }
 
         // Draw to XR
         //----------------------------------------------------------------------------------
@@ -72,21 +90,6 @@ int main(void) {
 
         // Draw to screen
         //----------------------------------------------------------------------------------
-
-        // get the pose (position and rotation) of the XR hmd (usually the centroid between XR views above)
-        rlPose viewPose = GetViewPose();
-
-        // update flatscreen camera to mirror the XR hmd (if the hmd is being tracked)
-        if (viewPose.isPositionValid) {
-            camera.position = viewPose.position;
-        }
-
-        if (viewPose.isOrientationValid) {
-            // camera conversion snippet from https://github.com/FireFlyForLife/rlOpenXR/blob/2fd2433eec8a096dd67c26c94671c4976f9b7dd8/src/rlOpenXR.cpp#L869
-            
-            camera.target = Vector3Add(Vector3RotateByQuaternion((Vector3){0.0f, 0.0f, -1.0f}, viewPose.orientation), viewPose.position);
-            camera.up = Vector3RotateByQuaternion((Vector3){0.0f, 1.0f, 0.0f}, viewPose.orientation);
-        }
 
         BeginDrawing();
 
