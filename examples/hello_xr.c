@@ -2,17 +2,9 @@
 #include "raymath.h"
 
 #define RLXR_IMPLEMENTATION
-#define SUPPORT_TRACELOG
 #include "rlxr.h"
 
-void drawScene() {
-    Vector3 cubePosition = { 0.0f, 0.0f, 0.0f };
-  
-    DrawCube(cubePosition, 0.5f, 0.5f, 0.5f, RED);
-    DrawCubeWires(cubePosition, 0.5f, 0.5f, 0.5f, MAROON);
-
-    DrawGrid(10, 0.25f);
-}
+static void drawScene();
 
 int main(void) {
     // Initialization
@@ -28,16 +20,16 @@ int main(void) {
         return -1;
     }
 
-    // Define the flatscreen camera to look into our 3d world
+    // Position the XR play space and the player in the scene
+    SetXrPosition((Vector3){ 0.0f, 1.5f, 1.5f });
+
+    // Define a camera to mirror the XR view for the flatscreen window
     Camera camera = { 0 };
     camera.position = (Vector3){ 0.0f, 1.5f, 1.5f };   // Camera position
     camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };     // Camera looking at point
     camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };         // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                               // Camera field-of-view Y
     camera.projection = CAMERA_PERSPECTIVE;            // Camera projection type
-
-    // Position the XR play space and the player to the same as the flatscreen camera
-    SetXrPosition((Vector3){ 0.0f, 1.5f, 1.5f });
 
     // let the XR runtime pace the frame loop on its own (blocks in UpdateXr)
     SetTargetFPS(-1);
@@ -46,13 +38,13 @@ int main(void) {
         // Update
         //----------------------------------------------------------------------------------
       
-        // Update internal XR event loop, this needs to be done every frame
+        // Update internal XR event loop, this needs to be done every frame before BeginXrMode
         UpdateXr();
 
-        // get the pose (position and rotation) of the XR hmd (usually the centroid between XR views above)
+        // Get the pose (position and rotation) of the XR hmd (usually the centroid between XR views above)
         rlPose viewPose = GetXrViewPose();
 
-        // update flatscreen camera to mirror the XR hmd (if the hmd is being tracked)
+        // Update flatscreen camera to mirror the XR hmd (if the hmd is being tracked)
         if (viewPose.isPositionValid) {
             camera.position = viewPose.position;
         }
@@ -109,3 +101,13 @@ int main(void) {
     CloseXr(); // clean up and close connection with XR runtime
     CloseWindow();
 }
+
+static void drawScene() {
+    Vector3 cubePosition = { 0.0f, 0.0f, 0.0f };
+  
+    DrawCube(cubePosition, 0.5f, 0.5f, 0.5f, RED);
+    DrawCubeWires(cubePosition, 0.5f, 0.5f, 0.5f, MAROON);
+
+    DrawGrid(10, 0.25f);
+}
+
