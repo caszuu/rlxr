@@ -175,7 +175,7 @@ RLAPI void rlSuggestBinding(unsigned int action, rlActionComponent component); /
 // RLAPI void rlLoadProfilePro(const char *profilePath); // select interaction profile for binding (by default it's /interaction_profiles/khr/simple_controller), the same profile mustn't be loaded twice; [mustn't be called after UpdateXr]
 // RLAPI void rlSuggestBindingPro(unsigned int action, rlActionDevices devices, const char *component); // suggests a binding with a full openxr component path; [mustn't be called after UpdateXr]
 
-// Action Fetches - value only
+// Action Fetchers - value only
 RLAPI bool rlGetBool(unsigned int action, rlActionDevices device);
 RLAPI float rlGetFloat(unsigned int action, rlActionDevices device);
 RLAPI Vector2 rlGetVector2(unsigned int action, rlActionDevices device);
@@ -226,6 +226,7 @@ RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long durat
 #endif
 
 #define RLXR_MAX_SPACES_PER_ACTION 2
+#define RLXR_NULL_ACTION (~(unsigned int)0)
 
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
@@ -257,6 +258,7 @@ typedef struct {
     int64_t depthFormat;
 
     unsigned int framebuffer;
+    unsigned int depthRenderBuffer; // used only as a fallback
 } rlxrViewBuffers;
 
 typedef struct {
@@ -285,6 +287,8 @@ typedef struct {
     XrView *views;
     XrCompositionLayerProjectionView *projectionViews;
     XrCompositionLayerDepthInfoKHR *depthInfoViews;
+
+    bool depthSupported;
 
     // spaces //
 
@@ -562,9 +566,10 @@ static bool rlxrInitSession() {
     int64_t colorFormat = rlxrChooseSwapchainFormat(GL_RGBA16F, true);
     int64_t depthFormat = rlxrChooseSwapchainFormat(GL_DEPTH_COMPONENT16, false);
 
+    rlxr.depthSupported = true;
     if (depthFormat < 0) {
-        TRACELOG(LOG_WARNING, "XR: Preferred depth format not supported");
-        return false; // TODO: support depth-less rendering
+        TRACELOG(LOG_WARNING, "XR: Preferred depth format not supported, falling back to internal render buffers");
+        rlxr.depthSupported = false;
     }
 
     rlxr.viewBufs = (rlxrViewBuffers *)RL_MALLOC(rlxr.viewCount * sizeof(rlxrViewBuffers));
@@ -612,49 +617,56 @@ static bool rlxrInitSession() {
     }
 
     // init depth swapchains
-    for (int i = 0; i < rlxr.viewCount; i++) {
-        rlxrViewBuffers *view = &rlxr.viewBufs[i];
+    if (rlxr.depthSupported) {
+        for (int i = 0; i < rlxr.viewCount; i++) {
+            rlxrViewBuffers *view = &rlxr.viewBufs[i];
         
-        XrSwapchainCreateInfo chainInfo = {XR_TYPE_SWAPCHAIN_CREATE_INFO};
-        chainInfo.usageFlags = XR_SWAPCHAIN_USAGE_SAMPLED_BIT | XR_SWAPCHAIN_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-        chainInfo.createFlags = 0;
-        chainInfo.format = depthFormat;
-        chainInfo.sampleCount = rlxr.viewProps[i].recommendedSwapchainSampleCount;
-        chainInfo.width = rlxr.viewProps[i].recommendedImageRectWidth;
-        chainInfo.height = rlxr.viewProps[i].recommendedImageRectHeight;
-        chainInfo.faceCount = 1;
-        chainInfo.arraySize = 1;
-        chainInfo.mipCount = 1;
+            XrSwapchainCreateInfo chainInfo = {XR_TYPE_SWAPCHAIN_CREATE_INFO};
+            chainInfo.usageFlags = XR_SWAPCHAIN_USAGE_SAMPLED_BIT | XR_SWAPCHAIN_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+            chainInfo.createFlags = 0;
+            chainInfo.format = depthFormat;
+            chainInfo.sampleCount = rlxr.viewProps[i].recommendedSwapchainSampleCount;
+            chainInfo.width = rlxr.viewProps[i].recommendedImageRectWidth;
+            chainInfo.height = rlxr.viewProps[i].recommendedImageRectHeight;
+            chainInfo.faceCount = 1;
+            chainInfo.arraySize = 1;
+            chainInfo.mipCount = 1;
 
-        res = xrCreateSwapchain(rlxr.session, &chainInfo, &view->depthSwapchain);
-        if (XR_FAILED(res)) {
-            TRACELOG(LOG_ERROR, "XR: Failed to create depth swapchain (%d)", res);
-            return false;
-        }
+            res = xrCreateSwapchain(rlxr.session, &chainInfo, &view->depthSwapchain);
+            if (XR_FAILED(res)) {
+                TRACELOG(LOG_ERROR, "XR: Failed to create depth swapchain (%d)", res);
+                return false;
+            }
 
-        // enumerate chain images
+            // enumerate chain images
 
-        res = xrEnumerateSwapchainImages(view->depthSwapchain, 0, &view->depthImageCount, NULL);
-        if (XR_FAILED(res)) {
-            TRACELOG(LOG_ERROR, "XR: Failed to enumerate swapchain images (%d)", res);
-            return false;
-        }
+            res = xrEnumerateSwapchainImages(view->depthSwapchain, 0, &view->depthImageCount, NULL);
+            if (XR_FAILED(res)) {
+                TRACELOG(LOG_ERROR, "XR: Failed to enumerate swapchain images (%d)", res);
+                return false;
+            }
 
-        view->depthImages = (XrSwapchainImageOpenGLKHR *)RL_MALLOC(view->depthImageCount * sizeof(view->depthImages[0]));
-        for (int i = 0; i < view->depthImageCount; i++) {
-            view->depthImages[i].type = XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_KHR;
-            view->depthImages[i].next = 0;
-        }
+            view->depthImages = (XrSwapchainImageOpenGLKHR *)RL_MALLOC(view->depthImageCount * sizeof(view->depthImages[0]));
+            for (int i = 0; i < view->depthImageCount; i++) {
+                view->depthImages[i].type = XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_KHR;
+                view->depthImages[i].next = 0;
+            }
         
-        res = xrEnumerateSwapchainImages(view->depthSwapchain, view->depthImageCount, &view->depthImageCount, (XrSwapchainImageBaseHeader *)view->depthImages);
-        if (XR_FAILED(res)) {
-            TRACELOG(LOG_ERROR, "XR: Failed to enumerate swapchain images (%d)", res);
-            return false;
+            res = xrEnumerateSwapchainImages(view->depthSwapchain, view->depthImageCount, &view->depthImageCount, (XrSwapchainImageBaseHeader *)view->depthImages);
+            if (XR_FAILED(res)) {
+                TRACELOG(LOG_ERROR, "XR: Failed to enumerate swapchain images (%d)", res);
+                return false;
+            }
         }
     }
 
     for (int i = 0; i < rlxr.viewCount; i++) {
         rlxr.viewBufs[i].framebuffer = rlLoadFramebuffer();
+
+        if (!rlxr.depthSupported) {
+            rlxr.viewBufs[i].depthRenderBuffer = rlLoadTextureDepth(rlxr.viewProps[i].recommendedImageRectWidth, rlxr.viewProps[i].recommendedImageRectHeight, true);
+            rlFramebufferAttach(rlxr.viewBufs[i].framebuffer, rlxr.viewBufs[i].depthRenderBuffer, RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_RENDERBUFFER, 0);
+        }
     }
 
     // pre-allocate view storage
@@ -680,22 +692,26 @@ static bool rlxrInitSession() {
         // .pose and .fov must be updated every frame
     }
 
-    rlxr.depthInfoViews = (XrCompositionLayerDepthInfoKHR *)RL_MALLOC(rlxr.viewCount * sizeof(XrCompositionLayerDepthInfoKHR));
-    for (int i = 0; i < rlxr.viewCount; i++) {
-        rlxr.depthInfoViews[i].type = XR_TYPE_COMPOSITION_LAYER_DEPTH_INFO_KHR;
-        rlxr.depthInfoViews[i].next = NULL;
-        rlxr.depthInfoViews[i].minDepth = 0.f; // TODO: sync with rlgl clip mode (?)
-        rlxr.depthInfoViews[i].maxDepth = 1.f;
+    if (rlxr.depthSupported) {
+        rlxr.depthInfoViews = (XrCompositionLayerDepthInfoKHR *)RL_MALLOC(rlxr.viewCount * sizeof(XrCompositionLayerDepthInfoKHR));
+        for (int i = 0; i < rlxr.viewCount; i++) {
+            rlxr.depthInfoViews[i].type = XR_TYPE_COMPOSITION_LAYER_DEPTH_INFO_KHR;
+            rlxr.depthInfoViews[i].next = NULL;
+            rlxr.depthInfoViews[i].minDepth = 0.f; // TODO: sync with rlgl clip mode (?)
+            rlxr.depthInfoViews[i].maxDepth = 1.f;
 
-        rlxr.depthInfoViews[i].subImage.swapchain = rlxr.viewBufs[i].depthSwapchain;
-        rlxr.depthInfoViews[i].subImage.imageArrayIndex = 0;
-        rlxr.depthInfoViews[i].subImage.imageRect.offset.x = 0;
-        rlxr.depthInfoViews[i].subImage.imageRect.offset.y = 0;
-        rlxr.depthInfoViews[i].subImage.imageRect.extent.width = rlxr.viewProps[i].recommendedImageRectWidth;
-        rlxr.depthInfoViews[i].subImage.imageRect.extent.height = rlxr.viewProps[i].recommendedImageRectHeight;
+            rlxr.depthInfoViews[i].subImage.swapchain = rlxr.viewBufs[i].depthSwapchain;
+            rlxr.depthInfoViews[i].subImage.imageArrayIndex = 0;
+            rlxr.depthInfoViews[i].subImage.imageRect.offset.x = 0;
+            rlxr.depthInfoViews[i].subImage.imageRect.offset.y = 0;
+            rlxr.depthInfoViews[i].subImage.imageRect.extent.width = rlxr.viewProps[i].recommendedImageRectWidth;
+            rlxr.depthInfoViews[i].subImage.imageRect.extent.height = rlxr.viewProps[i].recommendedImageRectHeight;
 
-        // depth info is chained to projection, not submitted as separate layer
-        rlxr.projectionViews[i].next = &rlxr.depthInfoViews[i];
+            // .nearZ and .farZ must be updated every frame from rlgl
+
+            // depth info is chained to projection, not submitted as separate layer
+            rlxr.projectionViews[i].next = &rlxr.depthInfoViews[i];
+        }
     }
 
     // log success and device info
@@ -742,11 +758,13 @@ void CloseXr() {
 
     for (int i = 0; i < rlxr.viewCount; i++) {
         RL_FREE(rlxr.viewBufs[i].colorImages);
-        RL_FREE(rlxr.viewBufs[i].depthImages);
+        if (rlxr.depthSupported) RL_FREE(rlxr.viewBufs[i].depthImages);
         
         rlUnloadFramebuffer(rlxr.viewBufs[i].framebuffer);
         xrDestroySwapchain(rlxr.viewBufs[i].colorSwapchain);
-        xrDestroySwapchain(rlxr.viewBufs[i].depthSwapchain);
+
+        if (rlxr.depthSupported) xrDestroySwapchain(rlxr.viewBufs[i].depthSwapchain);
+        else rlUnloadTexture(rlxr.viewBufs[i].depthRenderBuffer);
     }
 
     RL_FREE(rlxr.projectionViews);
@@ -1144,9 +1162,11 @@ void BeginView(unsigned int index) {
         TRACELOG(LOG_ERROR, "XR: Failed to acquire an image from swapchain (%d)", res);
     }
 
-    res = xrAcquireSwapchainImage(view->depthSwapchain, &acqInfo, &depthAcquiredIndex);
-    if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to acquire an image from swapchain (%d)", res);
+    if (rlxr.depthSupported) {
+        res = xrAcquireSwapchainImage(view->depthSwapchain, &acqInfo, &depthAcquiredIndex);
+        if (XR_FAILED(res)) {
+            TRACELOG(LOG_ERROR, "XR: Failed to acquire an image from swapchain (%d)", res);
+        }
     }
 
     XrSwapchainImageWaitInfo waitInfo = {XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
@@ -1156,10 +1176,12 @@ void BeginView(unsigned int index) {
     if (XR_FAILED(res)) {
         TRACELOG(LOG_ERROR, "XR: Failed to wait for an image from swapchain (%d)", res);
     }
-    
-    res = xrWaitSwapchainImage(view->depthSwapchain, &waitInfo);
-    if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to wait for an image from swapchain (%d)", res);
+
+    if (rlxr.depthSupported) {
+        res = xrWaitSwapchainImage(view->depthSwapchain, &waitInfo);
+        if (XR_FAILED(res)) {
+            TRACELOG(LOG_ERROR, "XR: Failed to wait for an image from swapchain (%d)", res);
+        }
     }
 
     // setup viewport and rlgl (very similar setup to BeginMode3D)
@@ -1168,8 +1190,11 @@ void BeginView(unsigned int index) {
 
     rlxr.projectionViews[index].pose = rlxr.views[index].pose;
     rlxr.projectionViews[index].fov = rlxr.views[index].fov;
-    rlxr.depthInfoViews[index].nearZ = rlGetCullDistanceNear();
-    rlxr.depthInfoViews[index].farZ = rlGetCullDistanceFar();
+
+    if (rlxr.depthSupported) {
+        rlxr.depthInfoViews[index].nearZ = rlGetCullDistanceNear();
+        rlxr.depthInfoViews[index].farZ = rlGetCullDistanceFar();
+    }
 
     int w = rlxr.viewProps[index].recommendedImageRectWidth;
     int h = rlxr.viewProps[index].recommendedImageRectHeight;
@@ -1178,7 +1203,10 @@ void BeginView(unsigned int index) {
     rlScissor(0, 0, w, h);
 
     rlFramebufferAttach(view->framebuffer, view->colorImages[colorAcquiredIndex].image, RL_ATTACHMENT_COLOR_CHANNEL0, RL_ATTACHMENT_TEXTURE2D, 0);
-    rlFramebufferAttach(view->framebuffer, view->depthImages[depthAcquiredIndex].image, RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_TEXTURE2D, 0);
+    if (rlxr.depthSupported) {
+        // attach XrSwapchain depth if supprted, if not a render buffer is already attached from swapchain setup
+        rlFramebufferAttach(view->framebuffer, view->depthImages[depthAcquiredIndex].image, RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_TEXTURE2D, 0);
+    }
 
     rlEnableFramebuffer(view->framebuffer);
     rlSetFramebufferWidth(w);
@@ -1216,9 +1244,11 @@ void EndView() {
         TRACELOG(LOG_ERROR, "XR: Failed to release a swapchain image (%d)", res);
     }
 
-    res = xrReleaseSwapchainImage(rlxr.viewBufs[rlxr.viewActiveIndex].depthSwapchain, &relInfo);
-    if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to release a swapchain image (%d)", res);
+    if (rlxr.depthSupported) {
+        res = xrReleaseSwapchainImage(rlxr.viewBufs[rlxr.viewActiveIndex].depthSwapchain, &relInfo);
+        if (XR_FAILED(res)) {
+            TRACELOG(LOG_ERROR, "XR: Failed to release a swapchain image (%d)", res);
+        }
     }
 
     // return rlgl to a default state
@@ -1303,14 +1333,14 @@ unsigned int rlLoadAction(const char *name, rlActionType type, rlActionDevices d
 
     default:
         TRACELOG(LOG_ERROR, "XR: invalid action devices for action %s", name);
-        return ~0;
+        return RLXR_NULL_ACTION;
     }
 
     XrAction xrAction;
     XrResult res = xrCreateAction(rlxr.actionSet, &actionInfo, &xrAction);
     if (XR_FAILED(res)) {
         TRACELOG(LOG_ERROR, "XR: Failed to create action %s", name);
-        return ~0;
+        return RLXR_NULL_ACTION;
     }
 
     // create action space (if required)
@@ -1345,7 +1375,7 @@ unsigned int rlLoadAction(const char *name, rlActionType type, rlActionDevices d
 
         if (XR_FAILED(res)) {
             TRACELOG(LOG_ERROR, "XR: Failed to create action spaces for action %s", name);
-            return ~0;
+            return RLXR_NULL_ACTION;
         }
     }
 
@@ -1402,7 +1432,7 @@ static void suggestBindingForDevice(rlxrAction *action, rlActionComponent compon
 
 void rlSuggestBinding(unsigned int action, rlActionComponent component) {
     assert(!rlxr.actionSetAttached);
-    assert(action != ~0);
+    if (action == RLXR_NULL_ACTION) return;
 
     rlxrAction *ac = &rlxr.actions[action];
 
@@ -1416,7 +1446,7 @@ void rlSuggestBinding(unsigned int action, rlActionComponent component) {
 
 rlBoolState rlGetBoolState(unsigned int action, rlActionDevices device) {
     assert(rlxr.actionSetAttached);
-    assert(action != ~0);
+    if (action == RLXR_NULL_ACTION) return (rlBoolState){ 0, 0, 0 };
 
     rlxrAction *ac = &rlxr.actions[action];
 
@@ -1454,7 +1484,7 @@ bool rlGetBool(unsigned int action, rlActionDevices device) {
 
 rlFloatState rlGetFloatState(unsigned int action, rlActionDevices device) {
     assert(rlxr.actionSetAttached);
-    assert(action != ~0);
+    if (action == RLXR_NULL_ACTION) return (rlFloatState){ 0.f, 0, 0 };
 
     rlxrAction *ac = &rlxr.actions[action];
 
@@ -1492,7 +1522,7 @@ float rlGetFloat(unsigned int action, rlActionDevices device) {
 
 rlVector2State rlGetVector2State(unsigned int action, rlActionDevices device) {
     assert(rlxr.actionSetAttached);
-    assert(action != ~0);
+    if (action == RLXR_NULL_ACTION) return (rlVector2State){ { 0.f, 0.f }, 0, 0 };
 
     rlxrAction *ac = &rlxr.actions[action];
 
@@ -1530,7 +1560,7 @@ Vector2 rlGetVector2(unsigned int action, rlActionDevices device) {
 
 rlPoseState rlGetPoseState(unsigned int action, rlActionDevices device) {
     assert(rlxr.actionSetAttached);
-    assert(action != ~0);
+    if (action == RLXR_NULL_ACTION) return (rlPoseState){ (rlPose){ {}, {}, 0, 0 }, 0 };
 
     rlxrAction *ac = &rlxr.actions[action];
 
@@ -1582,7 +1612,7 @@ rlPose rlGetPose(unsigned int action, rlActionDevices device) {
 
 void rlApplyHaptic(unsigned int action, rlActionDevices device, long duration, float amplitude) {
     assert(rlxr.actionSetAttached);
-    assert(action != ~0);
+    if (action == RLXR_NULL_ACTION) return;
 
     rlxrAction *ac = &rlxr.actions[action];
 

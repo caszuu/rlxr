@@ -65,7 +65,7 @@ Actions API:
 RLAPI unsigned int rlLoadAction(const char *name, rlActionType type, rlActionDevices devices); // registers a new action with the XR runtime; [mustn't be called after first UpdateXr() call]
 RLAPI void rlSuggestBinding(unsigned int action, rlActionComponent component); // suggests a binding for a registered action, this can be ignored / remapped by the XR runtime; [mustn't be called after first UpdateXr() call]
 
-// Action Fetches - value only
+// Action Fetchers - value only
 RLAPI bool rlGetBool(unsigned int action, rlActionDevices device);
 RLAPI float rlGetFloat(unsigned int action, rlActionDevices device);
 RLAPI Vector2 rlGetVector2(unsigned int action, rlActionDevices device);
