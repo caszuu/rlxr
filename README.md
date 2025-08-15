@@ -8,8 +8,8 @@ Feature support:
 - [x] XR Rendering API
 - [x] View / Reference Pose API
 - [x] Actions and Bindings
+- [x] Interaction Profiles
 
-- [ ] Interaction Profiles (Actions extended)
 - [ ] XR Overlay Session (`XR_EXTX_overlay`)
 - [ ] AR Session (XR Environment Blend Mode API)
 - [ ] Andoird / GLES support
@@ -64,6 +64,9 @@ Actions API:
 ```c
 RLAPI unsigned int rlLoadAction(const char *name, rlActionType type, rlActionDevices devices); // registers a new action with the XR runtime; [mustn't be called after first UpdateXr() call]
 RLAPI void rlSuggestBinding(unsigned int action, rlActionComponent component); // suggests a binding for a registered action, this can be ignored / remapped by the XR runtime; [mustn't be called after first UpdateXr() call]
+
+RLAPI void rlSuggestProfile(const char *profilePath); // select the interaction profile used for following binding suggestions (by default /interaction_profiles/khr/simple_controller), the same profile mustn't be selected twice; [mustn't be called after UpdateXr]
+RLAPI void rlSuggestBindingPro(unsigned int action, rlActionDevices devices, const char *componentPath); // suggests a binding with a direct openxr component path; [mustn't be called after UpdateXr]
 
 // Action Fetchers - value only
 RLAPI bool rlGetBool(unsigned int action, rlActionDevices device);

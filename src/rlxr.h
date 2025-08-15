@@ -172,8 +172,8 @@ RLAPI void EndView();    // finish view and disable 3D rendering
 RLAPI unsigned int rlLoadAction(const char *name, rlActionType type, rlActionDevices devices); // registers a new action with the XR runtime; [mustn't be called after first UpdateXr() call]
 RLAPI void rlSuggestBinding(unsigned int action, rlActionComponent component); // suggests a binding for a registered action, this can be ignored / remapped by the XR runtime; [mustn't be called after first UpdateXr() call]
 
-// RLAPI void rlLoadProfilePro(const char *profilePath); // select interaction profile for binding (by default it's /interaction_profiles/khr/simple_controller), the same profile mustn't be loaded twice; [mustn't be called after UpdateXr]
-// RLAPI void rlSuggestBindingPro(unsigned int action, rlActionDevices devices, const char *component); // suggests a binding with a full openxr component path; [mustn't be called after UpdateXr]
+RLAPI void rlSuggestProfile(const char *profilePath); // select the interaction profile used for following binding suggestions (by default /interaction_profiles/khr/simple_controller), the same profile mustn't be selected twice; [mustn't be called after UpdateXr]
+RLAPI void rlSuggestBindingPro(unsigned int action, rlActionDevices devices, const char *componentPath); // suggests a binding with a direct openxr component path; [mustn't be called after UpdateXr]
 
 // Action Fetchers - value only
 RLAPI bool rlGetBool(unsigned int action, rlActionDevices device);
@@ -226,6 +226,8 @@ RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long durat
 #endif
 
 #define RLXR_MAX_SPACES_PER_ACTION 2
+#define RLXR_MAX_PATH_LENGTH 256
+
 #define RLXR_NULL_ACTION (~(unsigned int)0)
 
 #include <openxr/openxr.h>
@@ -309,6 +311,7 @@ typedef struct {
 
     unsigned int bindingCount, bindingCap;
     XrActionSuggestedBinding *bindings;
+    XrPath currentSuggestProfile;
 
     bool actionSetAttached;
 
@@ -431,6 +434,8 @@ static bool rlxrInitInstance() {
     xrStringToPath(rlxr.instance, "/user/hand/left", &rlxr.userPaths[0]);
     xrStringToPath(rlxr.instance, "/user/hand/right", &rlxr.userPaths[1]);
 
+    xrStringToPath(rlxr.instance, "/interaction_profiles/khr/simple_controller", &rlxr.currentSuggestProfile);
+
     return true;
 }
 
@@ -465,6 +470,9 @@ static int64_t rlxrChooseSwapchainFormat(int64_t preferred, bool fallback) {
 
 typedef union {
 
+#ifdef XR_USE_PLATFORM_WIN32
+    XrGraphicsBindingOpenGLWin32KHR win32;
+#endif
 #ifdef XR_USE_PLATFORM_XLIB
     XrGraphicsBindingOpenGLXlibKHR xlib;
 #endif
@@ -472,7 +480,7 @@ typedef union {
     XrGraphicsBindingOpenGLWaylandKHR wayland;
 #endif
 
-} rlxrGraphicsBindingOpenGLLinux;
+} rlxrGraphicsBindingOpenGL;
 
 static bool rlxrInitSession() {
     // rlgl graphics binding
@@ -491,17 +499,23 @@ static bool rlxrInitSession() {
     //       currently supported platforms are:
     //         - GL/Win32 (fetching current WGL context)
     //         - GL/Xlib (fetching current GLX context)
-    //         - GL/Wayland (independent context?, does not seem to be widely supported by runtimes, might require XR_MDNX_egl_enable)
+    //
+    // - note on wayland: The most widely used way to enable wayland support is currently the XR_MDNX_egl_enable extension, but
+    //                    GraphicsBindingsOpenGLWaylandKHR *might* also be supported in the future, see https://gitlab.freedesktop.org/monado/monado/-/merge_requests/2527
+    //
+    //                    For now GraphicsBindingsOpenGLWaylandKHR is implemented but disabled as it would fail on most if not all runtimes.
+
+    rlxrGraphicsBindingOpenGL rlglInfo;
 
 #ifdef XR_USE_PLATFORM_WIN32
-    XrGraphicsBindingOpenGLWin32KHR rlglInfo = {XR_TYPE_GRAPHICS_BINDING_OPENGL_WIN32_KHR};
-    rlglInfo.hDC = wglGetCurrentDC();
-    rlglInfo.HGLRC = wglGetCurrentContext();
+    if (HGLRC ctx = wglGetCurrentContext()) {
+        rlglInfo.win32 = {XR_TYPE_GRAPHICS_BINDING_OPENGL_WIN32_KHR};
+        rlglInfo.win32.hDC = wglGetCurrentDC();
+        rlglInfo.win32.HGLRC = ctx;
 
-    TRACELOG(LOG_INFO, "XR: Detected graphics binding: Win32");
-#else
-    rlxrGraphicsBindingOpenGLLinux rlglInfo;
-
+        TRACELOG(LOG_INFO, "XR: Detected graphics binding: Win32");
+    } else
+#endif
 #ifdef XR_USE_PLATFORM_XLIB
     if (GLXContext ctx = glXGetCurrentContext()) {
         rlglInfo.xlib = (XrGraphicsBindingOpenGLXlibKHR){XR_TYPE_GRAPHICS_BINDING_OPENGL_XLIB_KHR};
@@ -524,8 +538,6 @@ static bool rlxrInitSession() {
         TRACELOG(LOG_ERROR, "XR: No supported graphics platform detected");
         return false;
     }
-
-#endif // XR_USE_PLATFORM_WIN32
 
     // create session
     
@@ -783,26 +795,31 @@ void CloseXr() {
     TRACELOG(LOG_INFO, "XR: Session closed suceessfully");
 }
 
+static void submitSuggestedBindings() {
+    assert(!rlxr.actionSetAttached);
+
+    if (rlxr.bindingCount != 0) {
+        XrInteractionProfileSuggestedBinding profileInfo = {XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
+        profileInfo.interactionProfile = rlxr.currentSuggestProfile;
+        profileInfo.countSuggestedBindings = rlxr.bindingCount;
+        profileInfo.suggestedBindings = rlxr.bindings;
+
+        XrResult res = xrSuggestInteractionProfileBindings(rlxr.instance, &profileInfo);
+        if (XR_FAILED(res)) {
+            TRACELOG(LOG_ERROR, "XR: Failed to suggest bindings, input will probably not work (%d)", res);
+        }
+    }
+
+    rlxr.bindingCount = 0;
+}
+
 void UpdateXr() {
     // attach action set (first update call)
 
     if (!rlxr.actionSetAttached) {
         // suggest bindings
 
-        if (rlxr.bindingCount != 0) {
-            XrPath profilePath;
-            xrStringToPath(rlxr.instance, "/interaction_profiles/khr/simple_controller", &profilePath);
-
-            XrInteractionProfileSuggestedBinding profileInfo = {XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
-            profileInfo.interactionProfile = profilePath;
-            profileInfo.countSuggestedBindings = rlxr.bindingCount;
-            profileInfo.suggestedBindings = rlxr.bindings;
-
-            XrResult res = xrSuggestInteractionProfileBindings(rlxr.instance, &profileInfo);
-            if (XR_FAILED(res)) {
-                TRACELOG(LOG_ERROR, "XR: Failed to suggest bindings, input will probably not work (%d)", res);
-            }
-        }
+        submitSuggestedBindings();
 
         // attach
 
@@ -1392,33 +1409,29 @@ unsigned int rlLoadAction(const char *name, rlActionType type, rlActionDevices d
     return actionIdx;
 }
 
-// LUTs of all component paths (based on the khr/simple_controller profile)
-static const char *leftHandPaths[] = {
-    "/user/hand/left/input/select/click",
-    "/user/hand/left/input/menu/click",
-    "/user/hand/left/input/grip/pose",
-    "/user/hand/left/input/aim/pose",
-    "/user/hand/left/output/haptic",
-};
-
-static const char *rightHandPaths[] = {
-    "/user/hand/right/input/select/click",
-    "/user/hand/right/input/menu/click",
-    "/user/hand/right/input/grip/pose",
-    "/user/hand/right/input/aim/pose",
-    "/user/hand/right/output/haptic",
-};
-
-static void suggestBindingForDevice(rlxrAction *action, rlActionComponent component, rlActionDevices device) {
+static void appendBinding(rlxrAction *action, const char *path) {
     assert(!rlxr.actionSetAttached);
-    assert(device != RLXR_HAND_BOTH);
 
     // convert path
 
-    const char *strPath = device == RLXR_HAND_LEFT ? leftHandPaths[component] : rightHandPaths[component];
-
     XrPath xrPath;
-    xrStringToPath(rlxr.instance, strPath, &xrPath);
+    XrResult res = xrStringToPath(rlxr.instance, path, &xrPath);
+
+    if (XR_FAILED(res)) {
+        switch (res) {
+        case XR_ERROR_PATH_FORMAT_INVALID:
+            TRACELOG(LOG_ERROR, "XR: Failed to suggest bidning, path format invalid");
+            return;
+
+        case XR_ERROR_PATH_COUNT_EXCEEDED:
+            TRACELOG(LOG_ERROR, "XR: Failed to suggest bidning, path count exceeded");
+            return;
+
+        default:
+            TRACELOG(LOG_ERROR, "XR: Failed to suggest bidning, path error (%d)", res);
+            return;
+        }
+    }
 
     // insert new bidning
 
@@ -1430,17 +1443,50 @@ static void suggestBindingForDevice(rlxrAction *action, rlActionComponent compon
     binding->binding = xrPath;
 }
 
+// LUTs of all enum component paths (based on the khr/simple_controller profile)
+static const char *khrHandPaths[] = {
+    "/input/select/click",
+    "/input/menu/click",
+    "/input/grip/pose",
+    "/input/aim/pose",
+    "/output/haptic",
+};
+
 void rlSuggestBinding(unsigned int action, rlActionComponent component) {
+    rlxrAction *ac = &rlxr.actions[action];
+
+    rlSuggestBindingPro(action, ac->subpaths, khrHandPaths[component]);
+}
+
+void rlSuggestProfile(const char *profilePath) {
+    // submit buffered bindings
+    submitSuggestedBindings();
+
+    // load next interaction profile
+    xrStringToPath(rlxr.instance, profilePath, &rlxr.currentSuggestProfile);
+}
+
+void rlSuggestBindingPro(unsigned int action, rlActionDevices devices, const char *component) {
     assert(!rlxr.actionSetAttached);
     if (action == RLXR_NULL_ACTION) return;
 
     rlxrAction *ac = &rlxr.actions[action];
+    static char pathBuf[RLXR_MAX_PATH_LENGTH];
 
-    if (ac->subpaths == RLXR_HAND_BOTH) {
-        suggestBindingForDevice(ac, component, RLXR_HAND_LEFT);
-        suggestBindingForDevice(ac, component, RLXR_HAND_RIGHT);
+    if (devices == RLXR_HAND_BOTH) {
+        strncpy(pathBuf, "/user/hand/left", RLXR_MAX_PATH_LENGTH);
+        strncat(pathBuf, component, RLXR_MAX_PATH_LENGTH - strlen(pathBuf));
+        appendBinding(ac, pathBuf);
+
+        strncpy(pathBuf, "/user/hand/right", RLXR_MAX_PATH_LENGTH);
+        strncat(pathBuf, component, RLXR_MAX_PATH_LENGTH - strlen(pathBuf));
+        appendBinding(ac, pathBuf);
     } else {
-        suggestBindingForDevice(ac, component, ac->subpaths);
+        const char *userPath = devices == RLXR_HAND_LEFT ? "/user/hand/left" : "/user/hand/right";
+        strncpy(pathBuf, userPath, RLXR_MAX_PATH_LENGTH);
+        strncat(pathBuf, component, RLXR_MAX_PATH_LENGTH - strlen(pathBuf));
+
+        appendBinding(ac, pathBuf);
     }
 }
 
