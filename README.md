@@ -1,7 +1,9 @@
-# A minimalist Raylib OpenXR library
-`rlxr` is a smol single-header module for integrating OpenXR with raylib and its ecosystem.
+# rlxr
+`rlxr` is a smol single-header module for integrating OpenXR with Raylib and its ecosystem.
 
-Currently only session management and rendering APIs are implemented and only Windows and Linux (`Xlib` only) are supported with Android being a possibility in the future. While OpenGL 3.3 might work, it's definitely recommended to build `rlgl` against OpenGL 4.3 as some OpenXR runtimes might require it.
+`rlxr` features a raylib-like subset of the OpenXR API that supports device-independent rendering and interaction with the binding based OpenXR input system.
+
+Currently only Windows and Linux (`Xlib` only) platforms are supported. While OpenGL 3.3 might work, it's recommended to build your project against OpenGL 4.3 as some OpenXR runtimes might require it.
 
 Feature support:
 - [x] XR Fullscreen Session
@@ -12,11 +14,11 @@ Feature support:
 
 - [ ] XR Overlay Session (`XR_EXTX_overlay`)
 - [ ] AR Session (XR Environment Blend Mode API)
-- [ ] Andoird / GLES support
+- [ ] Android / GLES support
 
-## Building
+## Usage and Building
 
-As for other single-header libs, simply include it with a **single** translation unit having a `RLXR_IMPLEMENTATION` defined
+As for other single-header modules, simply include `rlxr.h` with `RLXR_IMPLEMENTATION` being defined in a **single** translation unit.
 ```c
 #include "raylib.h"
 
@@ -24,9 +26,9 @@ As for other single-header libs, simply include it with a **single** translation
 #include "rlxr.h"
 ```
 
-To build a project with `rlxr` embedded, at least the OpenXR Loader will be required to be linked together with platform specific dependencies. OpenXR can be installed using your distros `openxr` package or with the OpenXR-SDK for Windows. A helper CMake script is present at the root of the repository that will find and link all dependencies for you.
+To build a project with `rlxr` embedded, the OpenXR Loader together with platform specific dependencies will have to be linked. OpenXR can be installed using your distros `openxr` package or with the OpenXR-SDK for Windows. A helper CMake script is present at the root of the repository that will find and link all dependencies for you.
 
-If you're using CMake for your project, simply clone the repo and link it with:
+If you're using CMake for your project, simply clone the repo and link it to your project with:
 ```cmake
 add_subdirectory(rlxr)
 target_link_libraries(my_project PRIVATE rlxr)
@@ -47,7 +49,7 @@ RLAPI rlXrState GetXrState(); // returns the current XR session state
 
 // Spaces and Poses
 RLAPI rlPose GetXrViewPose();          // returns the pose of the users view (usually the centroid between XR views used in BeginView)
-RLAPI void SetXrPosition(Vector3 pos); // sets the offset of the _reference_ frame, this offsets the entire play space (including the users cameras / views) by [pos] allowing you to move the player though-out the virtual space
+RLAPI void SetXrPosition(Vector3 pos); // sets the offset of the reference frame, this offsets the entire play space (including the users cameras / views) by [pos] allowing you to move the player throughout a virtual space
 RLAPI void SetXrOrientation(Quaternion quat);
 RLAPI rlPose GetXrPose();              // fetches the current reference frame offsets
 ```
@@ -55,18 +57,18 @@ RLAPI rlPose GetXrPose();              // fetches the current reference frame of
 Rendering API:
 ```c
 RLAPI int BeginXrMode(); // returns the number of views that are requested by the xr runtime (returns 0 if rendering is not required by the runtime, eg. app is not visible to user)
-RLAPI void EndXrMode();  // end and submit frame, must be called even when 0 views are requested
+RLAPI void EndXrMode();  // end and submit frame, *must* be called even when 0 views are requested
 RLAPI void BeginView(unsigned int index); // begin view with index in range [0, request_count), this sets up 3D rendering with an internal camera matching the view
 RLAPI void EndView();    // finish view and disable 3D rendering
 ```
 
 Actions API:
 ```c
-RLAPI unsigned int rlLoadAction(const char *name, rlActionType type, rlActionDevices devices); // registers a new action with the XR runtime; [mustn't be called after first UpdateXr() call]
-RLAPI void rlSuggestBinding(unsigned int action, rlActionComponent component); // suggests a binding for a registered action, this can be ignored / remapped by the XR runtime; [mustn't be called after first UpdateXr() call]
+RLAPI unsigned int rlLoadAction(const char *name, rlActionType type, rlActionDevices devices); // register a new action with the XR runtime; [mustn't be called after first UpdateXr() call]
+RLAPI void rlSuggestBinding(unsigned int action, rlActionComponent component); // suggest a binding for an action, this can be ignored / remapped by the XR runtime; [mustn't be called after first UpdateXr() call]
 
 RLAPI void rlSuggestProfile(const char *profilePath); // select the interaction profile used for following binding suggestions (by default /interaction_profiles/khr/simple_controller), the same profile mustn't be selected twice; [mustn't be called after UpdateXr]
-RLAPI void rlSuggestBindingPro(unsigned int action, rlActionDevices devices, const char *componentPath); // suggests a binding with a direct openxr component path; [mustn't be called after UpdateXr]
+RLAPI void rlSuggestBindingPro(unsigned int action, rlActionDevices devices, const char *componentPath); // suggest a binding with a direct openxr component path; [mustn't be called after UpdateXr]
 
 // Action Fetchers - value only
 RLAPI bool rlGetBool(unsigned int action, rlActionDevices device);
