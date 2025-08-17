@@ -44,16 +44,16 @@ int main(void) {
     // Setup Actions
     //--------------------------------------------------------------------------------------
 
-    // In OpenXR, an input is made from two parts: an _action_ and its _bindings_. First an app creates an
-    // _action_ which describes an input controlling a specific part of the app, an example might be
+    // In OpenXR, an input is made from two parts: an action and its bindings. First an app creates an
+    // action which describes an input controlling a specific part of the app, an example might be
     // a "aim" pose action, a "walk" Vector2 action and a "fire" boolean action together controlling a fps player.
 
     // create a boolean action valid only for the left controller
     int menu = rlLoadAction("menu-example", RLXR_TYPE_BOOLEAN, RLXR_HAND_LEFT);
 
-    // then to bind the _action_ to a specific hardware component, a _binding_ must be suggested. This _binding_
-    // *may* be ignored / remapped by the Xr runtime. (eg. remapped in the SteamVR Controller Bindings UI)
-    // Each _action_ must have at least one suggested _binding_ but multiple _bindings_ can also be suggested.
+    // then to bind the action to a specific hardware component, a binding must be suggested. This binding
+    // may be ignored / remapped by the Xr runtime. (eg. remapped in the SteamVR Controller Bindings UI)
+    // Each action must have at least one suggested binding but multiple bindings can also be suggested.
 
     // bind the color action with the menu component (maps to the menu or home button on most controllers)
     rlSuggestBinding(menu, RLXR_COMPONENT_MENU);
@@ -69,10 +69,10 @@ int main(void) {
     // note: we used the grip pose, but the aim pose is also available (see https://registry.khronos.org/OpenXR/specs/1.1/html/xrspec.html#semantic-paths-standard-pose-identifiers)
     // WARNING: all actions and bindings must be created and suggested *before* the first UpdateXr() call
 
-    WorldState world = {};
-
     // Setup text panel resources
+
     RenderTexture2D panelTarget = LoadRenderTexture(800, 450);
+    WorldState world = {};
 
     world.textPanel.mesh = GenMeshPlane(2.f, -1.125f, 1, 1);
     world.textPanel.mat = LoadMaterialDefault();

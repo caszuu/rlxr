@@ -1,8 +1,17 @@
 /*
  *  rlxr - a minimalist openxr integration with raylib and rlgl
+ *
+ *  config:
+ *      #define RLXR_IMPLEMENTATION
+ *          Also include the module implementation into the translation unit.
+ *          This must be done for a *single* translation unit in the project.
+ *
+ *      #define RLXR_APP_NAME "My Project"
+ *          Sets the string reported to the OpenXR runtime as the application name.
+ *
+ *      #define RLXR_ENGINE_NAME "My Engine"
+ *          Sets the string reported to the OpenXR runtime as the engine name.
  */
-
-/* clang-format off */
 
 #ifndef RLXR_H
 #define RLXR_H
@@ -57,6 +66,11 @@
         #define TRACELOGD(...) TraceLog(LOG_DEBUG, __VA_ARGS__)
     #endif
 #endif
+
+#define RLXR_MAX_SPACES_PER_ACTION 2
+#define RLXR_MAX_PATH_LENGTH 256
+
+#define RLXR_NULL_ACTION (~(unsigned int)0)
 
 #ifndef RLXR_APP_NAME
     #define RLXR_APP_NAME "rlxr app"
@@ -158,22 +172,22 @@ RLAPI rlXrState GetXrState(); // returns the current XR session state
 
 // Spaces and Poses
 RLAPI rlPose GetXrViewPose();          // returns the pose of the users view (usually the centroid between XR views used in BeginView)
-RLAPI void SetXrPosition(Vector3 pos); // sets the offset of the _reference_ frame, this offsets the entire play space (including the users cameras / views) by [pos] allowing you to move the player though-out the virtual space
+RLAPI void SetXrPosition(Vector3 pos); // sets the offset of the reference frame, this offsets the entire play space (including the users cameras / views) by [pos] allowing you to move the player though-out the virtual space
 RLAPI void SetXrOrientation(Quaternion quat);
 RLAPI rlPose GetXrPose();              // fetches the current reference frame offsets
 
 // View Rendering
 RLAPI int BeginXrMode(); // returns the number of views that are requested by the xr runtime (returns 0 if rendering is not required by the runtime, eg. app is not visible to user)
-RLAPI void EndXrMode();  // end and submit frame, must be called even when 0 views are requested
+RLAPI void EndXrMode();  // end and submit frame, *must* be called even when 0 views are requested
 RLAPI void BeginView(unsigned int index); // begin view with index in range [0, request_count), this sets up 3D rendering with an internal camera matching the view
 RLAPI void EndView();    // finish view and disable 3D rendering
 
 // Action and Bindings
-RLAPI unsigned int rlLoadAction(const char *name, rlActionType type, rlActionDevices devices); // registers a new action with the XR runtime; [mustn't be called after first UpdateXr() call]
-RLAPI void rlSuggestBinding(unsigned int action, rlActionComponent component); // suggests a binding for a registered action, this can be ignored / remapped by the XR runtime; [mustn't be called after first UpdateXr() call]
+RLAPI unsigned int rlLoadAction(const char *name, rlActionType type, rlActionDevices devices); // register a new action with the XR runtime; [mustn't be called after first UpdateXr() call]
+RLAPI void rlSuggestBinding(unsigned int action, rlActionComponent component); // suggest a binding for an action, this can be ignored / remapped by the XR runtime; [mustn't be called after first UpdateXr() call]
 
 RLAPI void rlSuggestProfile(const char *profilePath); // select the interaction profile used for following binding suggestions (by default /interaction_profiles/khr/simple_controller), the same profile mustn't be selected twice; [mustn't be called after UpdateXr]
-RLAPI void rlSuggestBindingPro(unsigned int action, rlActionDevices devices, const char *componentPath); // suggests a binding with a direct openxr component path; [mustn't be called after UpdateXr]
+RLAPI void rlSuggestBindingPro(unsigned int action, rlActionDevices devices, const char *componentPath); // suggest a binding with a direct openxr component path; [mustn't be called after UpdateXr]
 
 // Action Fetchers - value only
 RLAPI bool rlGetBool(unsigned int action, rlActionDevices device);
@@ -224,11 +238,6 @@ RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long durat
     // #define XR_USE_PLATFORM_WAYLAND
     // #include <wayland-client.h>
 #endif
-
-#define RLXR_MAX_SPACES_PER_ACTION 2
-#define RLXR_MAX_PATH_LENGTH 256
-
-#define RLXR_NULL_ACTION (~(unsigned int)0)
 
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
@@ -1691,5 +1700,3 @@ void rlApplyHaptic(unsigned int action, rlActionDevices device, long duration, f
 }
 
 #endif
-
-/* clang-format on */

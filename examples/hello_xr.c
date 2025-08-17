@@ -62,9 +62,8 @@ int main(void) {
         // Begin new XR frame, the number of views (cameras) to render requested by the XR runtime is returned.
         int views = BeginXrMode();
 
-        // note: the number of views will usually either 2 (stereoscopic rendering) or 0 (no rendering required, eg. the app is not visible in headset) but might
-        //       also be any other number. (eg. mono rendering or extra views requested by OpenXR layers eg. LIV) Therefore raylib apps should always be generic to the
-        //       number of views requested.
+        // note: currently the number of views can be either 2 (stereoscopic rendering) or 0 (no rendering required, eg. the app is not visible in headset). View index 0 will
+        //       always be the left eye and index 1 will always be the right eye.
 
         for (int i = 0; i < views; i++) {
             // Begin a XR view, this will setup the framebuffer and 3D rendering from the perspective of the view
