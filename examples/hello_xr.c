@@ -38,10 +38,10 @@ int main(void) {
         // Update
         //----------------------------------------------------------------------------------
       
-        // Update internal XR event loop, this needs to be done every frame before BeginXrMode
+        // Update internal XR event loop, this needs to be done every frame before BeginXrMode()
         UpdateXr();
 
-        // Get the pose (position and rotation) of the XR hmd (usually the centroid between XR views above)
+        // Get the pose (position and rotation) of the XR hmd (usually the centroid between XR views bellow)
         rlPose viewPose = GetXrViewPose();
 
         // Update flatscreen camera to mirror the XR hmd (if the hmd is being tracked)

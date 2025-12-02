@@ -53,5 +53,6 @@ if(${BUILD_RLXR_EXAMPLES})
         # Setup the example
         add_executable(${example_name} ${example_source})
         target_link_libraries(${example_name} PUBLIC raylib rlxr)
+        target_compile_options(${example_name} PRIVATE -Wall)
     endforeach()
 endif()

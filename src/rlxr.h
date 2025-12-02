@@ -518,6 +518,20 @@ typedef union {
 
 } rlxrGraphicsBindingOpenGL;
 
+typedef union {
+
+#ifdef XR_USE_PLATFORM_WIN32
+    HGLRC win32;
+#endif
+#ifdef XR_USE_PLATFORM_XLIB
+    GLXContext xlib;
+#endif
+#ifdef XR_USE_PLATFORM_WAYLAND
+    struct wl_display *wayland;
+#endif
+
+} rlxrGraphicsContext;
+
 static bool rlxrInitSession() {
     // rlgl graphics binding
 
@@ -542,30 +556,31 @@ static bool rlxrInitSession() {
     //                    For now GraphicsBindingsOpenGLWaylandKHR is implemented but disabled as it would fail on most if not all runtimes.
 
     rlxrGraphicsBindingOpenGL rlglInfo;
+    rlxrGraphicsContext ctx;
 
 #ifdef XR_USE_PLATFORM_WIN32
-    if (HGLRC ctx = wglGetCurrentContext()) {
+    if ((ctx.win32 = wglGetCurrentContext())) {
         rlglInfo.win32 = (XrGraphicsBindingOpenGLWin32KHR){XR_TYPE_GRAPHICS_BINDING_OPENGL_WIN32_KHR};
         rlglInfo.win32.hDC = wglGetCurrentDC();
-        rlglInfo.win32.hGLRC = ctx;
+        rlglInfo.win32.hGLRC = ctx.win32;
 
         TRACELOG(LOG_INFO, "XR: Detected graphics binding: Win32");
     } else
 #endif
 #ifdef XR_USE_PLATFORM_XLIB
-    if (GLXContext ctx = glXGetCurrentContext()) {
+    if ((ctx.xlib = glXGetCurrentContext())) {
         rlglInfo.xlib = (XrGraphicsBindingOpenGLXlibKHR){XR_TYPE_GRAPHICS_BINDING_OPENGL_XLIB_KHR};
         rlglInfo.xlib.xDisplay = XOpenDisplay(NULL);
-        rlglInfo.xlib.glxContext = ctx;
+        rlglInfo.xlib.glxContext = ctx.xlib;
         rlglInfo.xlib.glxDrawable = glXGetCurrentDrawable();
 
         TRACELOG(LOG_INFO, "XR: Detected graphics binding: Xlib");
     } else
 #endif
 #ifdef XR_USE_PLATFORM_WAYLAND
-    if (struct wl_display *disp = wl_display_connect(NULL)) {
+    if ((ctx.wayland = wl_display_connect(NULL))) {
         rlglInfo.wayland = (XrGraphicsBindingOpenGLWaylandKHR){XR_TYPE_GRAPHICS_BINDING_OPENGL_WAYLAND_KHR};
-        rlglInfo.wayland.display = disp;
+        rlglInfo.wayland.display = ctx.wayland;
 
         TRACELOG(LOG_INFO, "XR: Detected graphics binding: Wayland");
     } else
@@ -1342,9 +1357,14 @@ unsigned int rlLoadAction(const char *name, rlActionType type, rlActionDevices d
 
     // create action
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
+
     XrActionCreateInfo actionInfo = {XR_TYPE_ACTION_CREATE_INFO};
     strncpy(actionInfo.actionName, name, XR_MAX_ACTION_NAME_SIZE);
     strncpy(actionInfo.localizedActionName, name, XR_MAX_LOCALIZED_ACTION_NAME_SIZE);
+
+#pragma GCC diagnostic pop
 
     switch (type) {
     case RLXR_TYPE_BOOLEAN:

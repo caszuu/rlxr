@@ -46,7 +46,7 @@ int main(void) {
 
     // In OpenXR, an input is made from two parts: an action and its bindings. First an app creates an
     // action which describes an input controlling a specific part of the app, an example might be
-    // a "aim" pose action, a "walk" Vector2 action and a "fire" boolean action together controlling a fps player.
+    // an "aim" pose action, a "walk" Vector2 action and a "fire" boolean action together controlling a fps player.
 
     // create a boolean action valid only for the left controller
     int menu = rlLoadAction("menu-example", RLXR_TYPE_BOOLEAN, RLXR_HAND_LEFT);
@@ -55,7 +55,7 @@ int main(void) {
     // may be ignored / remapped by the Xr runtime. (eg. remapped in the SteamVR Controller Bindings UI)
     // Each action must have at least one suggested binding but multiple bindings can also be suggested.
 
-    // bind the color action with the menu component (maps to the menu or home button on most controllers)
+    // bind the "menu" action to the menu component (maps to the menu or home button on most controllers)
     rlSuggestBinding(menu, RLXR_COMPONENT_MENU);
 
     // create another boolean action and bind it to the select component (for both controllers)
