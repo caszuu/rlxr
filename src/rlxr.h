@@ -223,8 +223,32 @@ RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long durat
 // Select xr platform and include headers for window handles (required for XrGraphicsBinding...)
 #if defined(WIN32)
     #define XR_USE_PLATFORM_WIN32
+
+    // Move windows.h symbols to new names to avoid redefining the same names as raylib (https://github.com/raysan5/raylib/blob/3ba186f2c1d6f307740d313653772f0a312f5ec3/src/platforms/rcore_desktop_win32.c#L48)
+    #define CloseWindow CloseWindowWin32
+    #define Rectangle RectangleWin32
+    #define ShowCursor ShowCursorWin32
+    #define DrawTextA DrawTextAWin32
+    #define DrawTextW DrawTextWin32
+    #define DrawTextExA DrawTextExAWin32
+    #define DrawTextExW DrawTextExWin32
+
     #define WIN32_LEAN_AND_MEAN
-    #include <Windows.h>
+    #include <windows.h>
+
+    #undef CloseWindow      // raylib symbol collision
+    #undef Rectangle        // raylib symbol collision
+    #undef ShowCursor       // raylib symbol collision
+    #undef LoadImage        // raylib symbol collision
+    #undef DrawText         // raylib symbol collision
+    #undef DrawTextA
+    #undef DrawTextW
+    #undef DrawTextEx       // raylib symbol collision
+    #undef DrawTextExA
+    #undef DrawTextExW
+
+    #include <unknwn.h> // defines IUnknown required by openxr_platform.h
+
 #else
     // workaround for raylib / Xlib name collision (https://github.com/raysan5/raylib/blob/59546eb54ad950eb882627670c759a595d338acf/src/platforms/rcore_desktop_glfw.c#L79)
     #define Font X11Font
@@ -244,6 +268,9 @@ RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long durat
 
 #include "raymath.h"
 #include "rlgl.h"
+
+#include <GL/gl.h>
+#include <GL/glext.h> // required for format enums
 
 #include <stdlib.h>
 #include <stdint.h> // for openxr ints
@@ -518,9 +545,9 @@ static bool rlxrInitSession() {
 
 #ifdef XR_USE_PLATFORM_WIN32
     if (HGLRC ctx = wglGetCurrentContext()) {
-        rlglInfo.win32 = {XR_TYPE_GRAPHICS_BINDING_OPENGL_WIN32_KHR};
+        rlglInfo.win32 = (XrGraphicsBindingOpenGLWin32KHR){XR_TYPE_GRAPHICS_BINDING_OPENGL_WIN32_KHR};
         rlglInfo.win32.hDC = wglGetCurrentDC();
-        rlglInfo.win32.HGLRC = ctx;
+        rlglInfo.win32.hGLRC = ctx;
 
         TRACELOG(LOG_INFO, "XR: Detected graphics binding: Win32");
     } else

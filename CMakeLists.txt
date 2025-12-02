@@ -25,13 +25,13 @@ target_link_libraries(rlxr INTERFACE OpenXR::openxr_loader)
 
 # link libs for XR graphics bindings
 if(WIN32)
-    find_library(OpenGL REQUIRED)
+    find_package(OpenGL REQUIRED)
 
     target_link_libraries(rlxr INTERFACE OpenGL::GL)
 else()
     find_package(OpenGL REQUIRED)
     find_package(X11 REQUIRED)
-    # find_library(Wayland)
+    # find_package(Wayland)
 
     target_link_libraries(rlxr INTERFACE X11::X11 INTERFACE OpenGL::GL INTERFACE m)
 endif()
