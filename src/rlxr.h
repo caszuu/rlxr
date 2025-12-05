@@ -381,7 +381,7 @@ static bool rlxrInitInstance() {
     appInfo.applicationVersion = 1;
     strncpy(appInfo.engineName, RLXR_ENGINE_NAME, XR_MAX_APPLICATION_NAME_SIZE);
     appInfo.engineVersion = 1;
-    appInfo.apiVersion = XR_CURRENT_API_VERSION;
+    appInfo.apiVersion = XR_API_VERSION_1_0; // TODO: version switching
 
     // instance extensions
 
