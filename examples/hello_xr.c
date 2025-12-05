@@ -34,7 +34,7 @@ int main(void) {
     // let the XR runtime pace the frame loop on its own (blocks in UpdateXr)
     SetTargetFPS(-1);
 
-    while (!WindowShouldClose()) {
+    while (!WindowShouldClose() && IsXrConnected()) {
         // Update
         //----------------------------------------------------------------------------------
       

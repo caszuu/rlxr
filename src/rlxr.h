@@ -216,7 +216,6 @@ RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long durat
 *
 ************************************************************************************/
 
-#define RLXR_IMPLEMENTATION
 #if defined(RLXR_IMPLEMENTATION)
 
 #define XR_USE_GRAPHICS_API_OPENGL
@@ -357,7 +356,6 @@ typedef struct {
 
     XrFrameState frameState;
 
-    bool sessionRunning; 
     bool frameActive;
     unsigned int viewActiveIndex;
 
@@ -374,6 +372,21 @@ static rlxrState rlxr = { XR_NULL_HANDLE };
 //----------------------------------------------------------------------------------
 // Module Functions Definition - OpenXR state managment
 //----------------------------------------------------------------------------------
+
+inline static bool rlxrIsSessionRunning() {
+    if (!rlxr.instance) return false;
+
+    switch (rlxr.state) {
+    case XR_SESSION_STATE_READY:
+    case XR_SESSION_STATE_SYNCHRONIZED:
+    case XR_SESSION_STATE_VISIBLE:
+    case XR_SESSION_STATE_FOCUSED:
+        return true;
+
+    default:
+        return false;
+    }
+}
 
 static const char* rlxrFormatResult(XrResult res) {
     static char buf[XR_MAX_RESULT_STRING_SIZE];
@@ -829,7 +842,6 @@ bool InitXr() {
     rlxr.refPosition = (Vector3){0.f, 0.f, 0.f};
     rlxr.refOrientation = (Quaternion){0.f, 0.f, 0.f, 1.f};
 
-    rlxr.sessionRunning = false;
     rlxr.frameActive = false;
     rlxr.viewActiveIndex = ~0;
     
@@ -930,7 +942,7 @@ void UpdateXr() {
             case XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING:
                 TRACELOG(LOG_ERROR, "XR: Instance loss pending; rlxr disconnected.");
 
-                CloseXr();
+                rlxr.state = XR_SESSION_STATE_LOSS_PENDING;
                 return;
 
             case XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING:
@@ -949,27 +961,23 @@ void UpdateXr() {
                     if (XR_FAILED(res)) {
                         TRACELOG(LOG_ERROR, "XR: Failed to begin session (%s)", rlxrFormatResult(res));
                     }
-
-                    rlxr.sessionRunning = true;
                 }
                 if (state->state == XR_SESSION_STATE_STOPPING) {
                     XrResult res = xrEndSession(rlxr.session);
                     if (XR_FAILED(res)) {
                         TRACELOG(LOG_ERROR, "XR: Failed to end session (%s)", rlxrFormatResult(res));
                     }
-
-                    rlxr.sessionRunning = false;
                 }
                 if (state->state == XR_SESSION_STATE_EXITING) {
                     TRACELOG(LOG_ERROR, "XR: Session exiting; rlxr disconnected.");
 
-                    CloseXr();
+                    rlxr.state = XR_SESSION_STATE_EXITING;
                     return;
                 }
                 if (state->state == XR_SESSION_STATE_LOSS_PENDING) {
                     TRACELOG(LOG_ERROR, "XR: Session loss pending; rlxr disconnected.");
 
-                    CloseXr();
+                    rlxr.state = XR_SESSION_STATE_LOSS_PENDING;
                     return;
                 }
 
@@ -982,7 +990,7 @@ void UpdateXr() {
         }
     }
 
-    if (rlxr.sessionRunning) {
+    if (rlxrIsSessionRunning()) {
         // sync with xr runtime
 
         rlxr.frameState.type = XR_TYPE_FRAME_STATE;
@@ -1011,12 +1019,12 @@ void UpdateXr() {
 }
 
 bool IsXrConnected() {
-    return rlxr.instance != XR_NULL_HANDLE;
+    if (!rlxr.instance) return false;
+    return rlxr.state != XR_SESSION_STATE_LOSS_PENDING && rlxr.state != XR_SESSION_STATE_EXITING;
 }
 
 bool IsXrFocused() {
     if (!rlxr.instance) return false;
-    
     return rlxr.state == XR_SESSION_STATE_FOCUSED;
 }
 
@@ -1184,7 +1192,7 @@ XrMatrix4x4f_CreateProjectionFov(Matrix* result,
 int BeginXrMode() {
     assert(!rlxr.frameActive);
 
-    if (!rlxr.sessionRunning) {
+    if (!rlxrIsSessionRunning()) {
         return 0; // session not yet synchronized, skip this frame
     }
 
@@ -1207,6 +1215,15 @@ int BeginXrMode() {
     
     res = xrBeginFrame(rlxr.session, &beginInfo);
     if (XR_FAILED(res)) {
+        if (res == XR_ERROR_SESSION_LOST || res == XR_ERROR_INSTANCE_LOST) {
+            // in the case that the app doesn't gracefully receive a _LOSS_PENDING event, we have to
+            // make sure we _eventually_ close the XR connection, clean up and make it visible to the
+            // app (using IsXrConnected)
+
+            rlxr.state = XR_SESSION_STATE_LOSS_PENDING;
+            return 0;
+        }
+
         TRACELOG(LOG_ERROR, "XR: Failed to begin a frame (%s)", rlxrFormatResult(res));
     }
 

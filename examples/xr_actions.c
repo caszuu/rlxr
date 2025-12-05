@@ -78,10 +78,10 @@ int main(void) {
     world.textPanel.mat = LoadMaterialDefault();
     SetMaterialTexture(&world.textPanel.mat, MATERIAL_MAP_DIFFUSE, panelTarget.texture);
 
-    while (!WindowShouldClose()) {
+    while (!WindowShouldClose() && IsXrConnected()) {
         // Update
         //----------------------------------------------------------------------------------
-      
+
         // Update all action states and internal XR event loop, this needs to be done every frame
         UpdateXr();
 
