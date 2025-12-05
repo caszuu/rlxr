@@ -216,6 +216,7 @@ RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long durat
 *
 ************************************************************************************/
 
+#define RLXR_IMPLEMENTATION
 #if defined(RLXR_IMPLEMENTATION)
 
 #define XR_USE_GRAPHICS_API_OPENGL
@@ -272,6 +273,7 @@ RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long durat
 #include <GL/gl.h>
 #include <GL/glext.h> // required for format enums
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h> // for openxr ints
 #include <string.h>
@@ -373,6 +375,20 @@ static rlxrState rlxr = { XR_NULL_HANDLE };
 // Module Functions Definition - OpenXR state managment
 //----------------------------------------------------------------------------------
 
+static const char* rlxrFormatResult(XrResult res) {
+    static char buf[XR_MAX_RESULT_STRING_SIZE];
+
+    if (rlxr.instance != XR_NULL_HANDLE) {
+        XrResult convRes = xrResultToString(rlxr.instance, res, buf);
+
+        if (XR_SUCCEEDED(convRes))
+            return buf;
+    }
+
+    snprintf(buf, XR_MAX_RESULT_STRING_SIZE, "%d", res);
+    return buf;
+}
+
 static bool rlxrInitInstance() {
     // app info
     
@@ -400,14 +416,29 @@ static bool rlxrInitInstance() {
 
     XrResult res = xrCreateInstance(&instanceInfo, &rlxr.instance);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to init XrInstance (%d)", res);
-        return false;
+        switch (res) {
+        case XR_ERROR_RUNTIME_UNAVAILABLE:
+            TRACELOG(LOG_ERROR, "XR: No active XR runtime found.");
+            return false;
+
+        case XR_ERROR_API_VERSION_UNSUPPORTED:
+            TRACELOG(LOG_ERROR, "XR: API version %d.%d.%d not supported by runtime.", XR_VERSION_MAJOR(appInfo.apiVersion), XR_VERSION_MINOR(appInfo.apiVersion), XR_VERSION_PATCH(appInfo.apiVersion));
+            return false;
+
+        case XR_ERROR_EXTENSION_NOT_PRESENT:
+            TRACELOG(LOG_ERROR, "XR: Requested API extensions not supported by runtime.");
+            return false;
+
+        default:
+            TRACELOG(LOG_ERROR, "XR: Failed to init XrInstance (%d)", res);
+            return false;
+        }
     }
 
     // FIXME: XR_EXT_debug_utils setup
     res = xrGetInstanceProcAddr(rlxr.instance, "xrGetOpenGLGraphicsRequirementsKHR", (PFN_xrVoidFunction *)&rlxr.pfnGetOpenGLGraphicsRequirementsKHR);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to init OpenGL bindings (%d)", res);
+        TRACELOG(LOG_ERROR, "XR: Failed to init OpenGL bindings (%s)", rlxrFormatResult(res));
         return false;
     }
 
@@ -418,15 +449,14 @@ static bool rlxrInitInstance() {
 
     res = xrGetSystem(rlxr.instance, &systemInfo, &rlxr.system);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to get XrSystemId (%d)", res);
+        TRACELOG(LOG_ERROR, "XR: Failed to get XrSystemId (%s)", rlxrFormatResult(res));
         return false;
     }
 
-    rlxr.systemProps.type = XR_TYPE_SYSTEM_PROPERTIES;
-    rlxr.systemProps.next = 0;
+    rlxr.systemProps = (XrSystemProperties){XR_TYPE_SYSTEM_PROPERTIES};
     res = xrGetSystemProperties(rlxr.instance, rlxr.system, &rlxr.systemProps);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to get XrSystemProperties (%d)", res);
+        TRACELOG(LOG_ERROR, "XR: Failed to get XrSystemProperties (%s)", rlxrFormatResult(res));
         return false;
     }
 
@@ -436,7 +466,7 @@ static bool rlxrInitInstance() {
 
     res = xrEnumerateViewConfigurationViews(rlxr.instance, rlxr.system, rlxr.viewConfig, 0, &rlxr.viewCount, NULL);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to enumerate views (%d)", res);
+        TRACELOG(LOG_ERROR, "XR: Failed to enumerate views (%s)", rlxrFormatResult(res));
         return false;
     }
 
@@ -448,7 +478,7 @@ static bool rlxrInitInstance() {
 
     res = xrEnumerateViewConfigurationViews(rlxr.instance, rlxr.system, rlxr.viewConfig, rlxr.viewCount, &rlxr.viewCount, rlxr.viewProps);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to enumerate views (%d)", res);
+        TRACELOG(LOG_ERROR, "XR: Failed to enumerate views (%s)", rlxrFormatResult(res));
         return false;
     }
 
@@ -461,7 +491,7 @@ static bool rlxrInitInstance() {
 
     res = xrCreateActionSet(rlxr.instance, &setInfo, &rlxr.actionSet);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to create action set (%d)", res);
+        TRACELOG(LOG_ERROR, "XR: Failed to create action set (%s)", rlxrFormatResult(res));
         return false;
     }
 
@@ -481,14 +511,14 @@ static int64_t rlxrChooseSwapchainFormat(int64_t preferred, bool fallback) {
     
     XrResult res = xrEnumerateSwapchainFormats(rlxr.session, 0, &formatCount, NULL);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to enumerate swapchain formats (%d)", res);
+        TRACELOG(LOG_ERROR, "XR: Failed to enumerate swapchain formats (%s)", rlxrFormatResult(res));
         return -1;
     }
 
     formats = (int64_t *)RL_MALLOC(formatCount * sizeof(formats[0]));
     res = xrEnumerateSwapchainFormats(rlxr.session, formatCount, &formatCount, formats);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to enumerate swapchain formats (%d)", res);
+        TRACELOG(LOG_ERROR, "XR: Failed to enumerate swapchain formats (%s)", rlxrFormatResult(res));
 
         RL_FREE(formats);
         return -1;
@@ -539,7 +569,7 @@ static bool rlxrInitSession() {
 
     XrResult res = rlxr.pfnGetOpenGLGraphicsRequirementsKHR(rlxr.instance, rlxr.system, &openglReqs);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to fetch OpenGL requirements (%d)", res);
+        TRACELOG(LOG_ERROR, "XR: Failed to fetch OpenGL requirements (%s)", rlxrFormatResult(res));
         return false;
     }
 
@@ -599,7 +629,7 @@ static bool rlxrInitSession() {
 
     res = xrCreateSession(rlxr.instance, &sessionInfo, &rlxr.session);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to create XrSession (%d)", res);
+        TRACELOG(LOG_ERROR, "XR: Failed to create XrSession (%s)", rlxrFormatResult(res));
         return false;
     }
 
@@ -613,14 +643,14 @@ static bool rlxrInitSession() {
 
     res = xrCreateReferenceSpace(rlxr.session, &refInfo, &rlxr.referenceSpace);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to create reference XrSpace (%d)", res);
+        TRACELOG(LOG_ERROR, "XR: Failed to create reference XrSpace (%s)", rlxrFormatResult(res));
         return false;
     }
 
     refInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW;
     res = xrCreateReferenceSpace(rlxr.session, &refInfo, &rlxr.viewSpace);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to create view XrSpace (%d)", res);
+        TRACELOG(LOG_ERROR, "XR: Failed to create view XrSpace (%s)", rlxrFormatResult(res));
         return false;
     }
 
@@ -654,7 +684,7 @@ static bool rlxrInitSession() {
 
         res = xrCreateSwapchain(rlxr.session, &chainInfo, &view->colorSwapchain);
         if (XR_FAILED(res)) {
-            TRACELOG(LOG_ERROR, "XR: Failed to create swapchain (%d)", res);
+            TRACELOG(LOG_ERROR, "XR: Failed to create swapchain (%s)", rlxrFormatResult(res));
             return false;
         }
 
@@ -662,7 +692,7 @@ static bool rlxrInitSession() {
 
         res = xrEnumerateSwapchainImages(view->colorSwapchain, 0, &view->colorImageCount, NULL);
         if (XR_FAILED(res)) {
-            TRACELOG(LOG_ERROR, "XR: Failed to enumerate swapchain images (%d)", res);
+            TRACELOG(LOG_ERROR, "XR: Failed to enumerate swapchain images (%s)", rlxrFormatResult(res));
             return false;
         }
 
@@ -674,7 +704,7 @@ static bool rlxrInitSession() {
         
         res = xrEnumerateSwapchainImages(view->colorSwapchain, view->colorImageCount, &view->colorImageCount, (XrSwapchainImageBaseHeader *)view->colorImages);
         if (XR_FAILED(res)) {
-            TRACELOG(LOG_ERROR, "XR: Failed to enumerate swapchain images (%d)", res);
+            TRACELOG(LOG_ERROR, "XR: Failed to enumerate swapchain images (%s)", rlxrFormatResult(res));
             return false;
         }
     }
@@ -697,7 +727,7 @@ static bool rlxrInitSession() {
 
             res = xrCreateSwapchain(rlxr.session, &chainInfo, &view->depthSwapchain);
             if (XR_FAILED(res)) {
-                TRACELOG(LOG_ERROR, "XR: Failed to create depth swapchain (%d)", res);
+                TRACELOG(LOG_ERROR, "XR: Failed to create depth swapchain (%s)", rlxrFormatResult(res));
                 return false;
             }
 
@@ -705,7 +735,7 @@ static bool rlxrInitSession() {
 
             res = xrEnumerateSwapchainImages(view->depthSwapchain, 0, &view->depthImageCount, NULL);
             if (XR_FAILED(res)) {
-                TRACELOG(LOG_ERROR, "XR: Failed to enumerate swapchain images (%d)", res);
+                TRACELOG(LOG_ERROR, "XR: Failed to enumerate swapchain images (%s)", rlxrFormatResult(res));
                 return false;
             }
 
@@ -717,7 +747,7 @@ static bool rlxrInitSession() {
         
             res = xrEnumerateSwapchainImages(view->depthSwapchain, view->depthImageCount, &view->depthImageCount, (XrSwapchainImageBaseHeader *)view->depthImages);
             if (XR_FAILED(res)) {
-                TRACELOG(LOG_ERROR, "XR: Failed to enumerate swapchain images (%d)", res);
+                TRACELOG(LOG_ERROR, "XR: Failed to enumerate swapchain images (%s)", rlxrFormatResult(res));
                 return false;
             }
         }
@@ -857,7 +887,7 @@ static void submitSuggestedBindings() {
 
         XrResult res = xrSuggestInteractionProfileBindings(rlxr.instance, &profileInfo);
         if (XR_FAILED(res)) {
-            TRACELOG(LOG_ERROR, "XR: Failed to suggest bindings, input will probably not work (%d)", res);
+            TRACELOG(LOG_ERROR, "XR: Failed to suggest bindings, input will probably not work (%s)", rlxrFormatResult(res));
         }
     }
 
@@ -880,7 +910,7 @@ void UpdateXr() {
 
         XrResult res = xrAttachSessionActionSets(rlxr.session, &attachInfo);
         if (XR_FAILED(res)) {
-            TRACELOG(LOG_ERROR, "XR: Failed to attach action set, input will probably not work (%d)", res);
+            TRACELOG(LOG_ERROR, "XR: Failed to attach action set, input will probably not work (%s)", rlxrFormatResult(res));
         } else if (rlxr.actionCount != 0) {
             TRACELOG(LOG_INFO, "XR: %d actions attached successfully", rlxr.actionCount);
         }
@@ -917,7 +947,7 @@ void UpdateXr() {
 
                     XrResult res = xrBeginSession(rlxr.session, &beginInfo);
                     if (XR_FAILED(res)) {
-                        TRACELOG(LOG_ERROR, "XR: Failed to begin session (%d)", res);
+                        TRACELOG(LOG_ERROR, "XR: Failed to begin session (%s)", rlxrFormatResult(res));
                     }
 
                     rlxr.sessionRunning = true;
@@ -925,7 +955,7 @@ void UpdateXr() {
                 if (state->state == XR_SESSION_STATE_STOPPING) {
                     XrResult res = xrEndSession(rlxr.session);
                     if (XR_FAILED(res)) {
-                        TRACELOG(LOG_ERROR, "XR: Failed to end session (%d)", res);
+                        TRACELOG(LOG_ERROR, "XR: Failed to end session (%s)", rlxrFormatResult(res));
                     }
 
                     rlxr.sessionRunning = false;
@@ -960,7 +990,7 @@ void UpdateXr() {
 
         XrResult res = xrWaitFrame(rlxr.session, &waitInfo, &rlxr.frameState);
         if (XR_FAILED(res)) {
-            TRACELOG(LOG_ERROR, "XR: Failed to wait for a frame (%d)", res);
+            TRACELOG(LOG_ERROR, "XR: Failed to wait for a frame (%s)", rlxrFormatResult(res));
         }
 
         // sync action set
@@ -975,7 +1005,7 @@ void UpdateXr() {
 
         res = xrSyncActions(rlxr.session, &syncInfo);
         if (XR_FAILED(res)) {
-            TRACELOG(LOG_WARNING, "XR: Failed to sync actions");
+            TRACELOG(LOG_WARNING, "XR: Failed to sync actions (%s)", rlxrFormatResult(res));
         }
     }
 }
@@ -1044,7 +1074,7 @@ rlPose GetXrViewPose() {
 
     XrResult res = xrLocateSpace(rlxr.viewSpace, rlxr.referenceSpace, rlxr.frameState.predictedDisplayTime, &location);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: failed to locate view space (%d)", res);
+        TRACELOG(LOG_ERROR, "XR: failed to locate view space (%s)", rlxrFormatResult(res));
     }
 
     return xrPoseToRlPose(location.pose, location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT, location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
@@ -1168,7 +1198,7 @@ int BeginXrMode() {
 
     XrResult res = xrLocateViews(rlxr.session, &locateInfo, &viewState, rlxr.viewCount, &rlxr.viewCount, rlxr.views);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to locate views (%d)", res);
+        TRACELOG(LOG_ERROR, "XR: Failed to locate views (%s)", rlxrFormatResult(res));
     }
 
     // begin frame
@@ -1177,7 +1207,7 @@ int BeginXrMode() {
     
     res = xrBeginFrame(rlxr.session, &beginInfo);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to begin a frame (%d)", res);
+        TRACELOG(LOG_ERROR, "XR: Failed to begin a frame (%s)", rlxrFormatResult(res));
     }
 
     rlxr.frameActive = true;
@@ -1208,7 +1238,7 @@ void EndXrMode() {
 
     XrResult res = xrEndFrame(rlxr.session, &endInfo);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to end a frame (%d)", res);
+        TRACELOG(LOG_ERROR, "XR: Failed to end a frame (%s)", rlxrFormatResult(res));
     }
 
     rlxr.frameActive = false;
@@ -1227,13 +1257,13 @@ void BeginView(unsigned int index) {
 
     XrResult res = xrAcquireSwapchainImage(view->colorSwapchain, &acqInfo, &colorAcquiredIndex);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to acquire an image from swapchain (%d)", res);
+        TRACELOG(LOG_ERROR, "XR: Failed to acquire an image from swapchain (%s)", rlxrFormatResult(res));
     }
 
     if (rlxr.depthSupported) {
         res = xrAcquireSwapchainImage(view->depthSwapchain, &acqInfo, &depthAcquiredIndex);
         if (XR_FAILED(res)) {
-            TRACELOG(LOG_ERROR, "XR: Failed to acquire an image from swapchain (%d)", res);
+            TRACELOG(LOG_ERROR, "XR: Failed to acquire an image from swapchain (%s)", rlxrFormatResult(res));
         }
     }
 
@@ -1242,13 +1272,13 @@ void BeginView(unsigned int index) {
 
     res = xrWaitSwapchainImage(view->colorSwapchain, &waitInfo);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to wait for an image from swapchain (%d)", res);
+        TRACELOG(LOG_ERROR, "XR: Failed to wait for an image from swapchain (%s)", rlxrFormatResult(res));
     }
 
     if (rlxr.depthSupported) {
         res = xrWaitSwapchainImage(view->depthSwapchain, &waitInfo);
         if (XR_FAILED(res)) {
-            TRACELOG(LOG_ERROR, "XR: Failed to wait for an image from swapchain (%d)", res);
+            TRACELOG(LOG_ERROR, "XR: Failed to wait for an image from swapchain (%s)", rlxrFormatResult(res));
         }
     }
 
@@ -1309,13 +1339,13 @@ void EndView() {
     
     XrResult res = xrReleaseSwapchainImage(rlxr.viewBufs[rlxr.viewActiveIndex].colorSwapchain, &relInfo);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to release a swapchain image (%d)", res);
+        TRACELOG(LOG_ERROR, "XR: Failed to release a swapchain image (%s)", rlxrFormatResult(res));
     }
 
     if (rlxr.depthSupported) {
         res = xrReleaseSwapchainImage(rlxr.viewBufs[rlxr.viewActiveIndex].depthSwapchain, &relInfo);
         if (XR_FAILED(res)) {
-            TRACELOG(LOG_ERROR, "XR: Failed to release a swapchain image (%d)", res);
+            TRACELOG(LOG_ERROR, "XR: Failed to release a swapchain image (%s)", rlxrFormatResult(res));
         }
     }
 
@@ -1412,7 +1442,7 @@ unsigned int rlLoadAction(const char *name, rlActionType type, rlActionDevices d
     XrAction xrAction;
     XrResult res = xrCreateAction(rlxr.actionSet, &actionInfo, &xrAction);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to create action %s", name);
+        TRACELOG(LOG_ERROR, "XR: Failed to create action %s (%s)", name, rlxrFormatResult(res));
         return RLXR_NULL_ACTION;
     }
 
@@ -1447,7 +1477,7 @@ unsigned int rlLoadAction(const char *name, rlActionType type, rlActionDevices d
         }
 
         if (XR_FAILED(res)) {
-            TRACELOG(LOG_ERROR, "XR: Failed to create action spaces for action %s", name);
+            TRACELOG(LOG_ERROR, "XR: Failed to create action spaces for action %s (%s)", name, rlxrFormatResult(res));
             return RLXR_NULL_ACTION;
         }
     }
@@ -1474,19 +1504,8 @@ static void appendBinding(rlxrAction *action, const char *path) {
     XrResult res = xrStringToPath(rlxr.instance, path, &xrPath);
 
     if (XR_FAILED(res)) {
-        switch (res) {
-        case XR_ERROR_PATH_FORMAT_INVALID:
-            TRACELOG(LOG_ERROR, "XR: Failed to suggest bidning, path format invalid");
-            return;
-
-        case XR_ERROR_PATH_COUNT_EXCEEDED:
-            TRACELOG(LOG_ERROR, "XR: Failed to suggest bidning, path count exceeded");
-            return;
-
-        default:
-            TRACELOG(LOG_ERROR, "XR: Failed to suggest bidning, path error (%d)", res);
-            return;
-        }
+        TRACELOG(LOG_ERROR, "XR: Failed to suggest bidning, path error (%s)", rlxrFormatResult(res));
+        return;
     }
 
     // insert new bidning
@@ -1572,7 +1591,7 @@ rlBoolState rlGetBoolState(unsigned int action, rlActionDevices device) {
     XrActionStateBoolean state = {XR_TYPE_ACTION_STATE_BOOLEAN};
     XrResult res = xrGetActionStateBoolean(rlxr.session, &getInfo, &state);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to get bool action (result: %d; action: %d)", res, action);
+        TRACELOG(LOG_ERROR, "XR: Failed to get bool action (action: %d; result: %s)", action, rlxrFormatResult(res));
         return (rlBoolState){ 0, 0, 0 };
     }
 
@@ -1610,7 +1629,7 @@ rlFloatState rlGetFloatState(unsigned int action, rlActionDevices device) {
     XrActionStateFloat state = {XR_TYPE_ACTION_STATE_FLOAT};
     XrResult res = xrGetActionStateFloat(rlxr.session, &getInfo, &state);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to get float action (result: %d; action: %d)", res, action);
+        TRACELOG(LOG_ERROR, "XR: Failed to get float action (action: %d; result: %s)", action, rlxrFormatResult(res));
         return (rlFloatState){ 0.f, 0, 0 };
     }
 
@@ -1648,7 +1667,7 @@ rlVector2State rlGetVector2State(unsigned int action, rlActionDevices device) {
     XrActionStateVector2f state = {XR_TYPE_ACTION_STATE_VECTOR2F};
     XrResult res = xrGetActionStateVector2f(rlxr.session, &getInfo, &state);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to get vector2 action (result: %d; action: %d)", res, action);
+        TRACELOG(LOG_ERROR, "XR: Failed to get vector2 action (action: %d; result: %s)", action, rlxrFormatResult(res));
         return (rlVector2State){ { 0.f, 0.f }, 0, 0 };
     }
 
@@ -1686,7 +1705,7 @@ rlPoseState rlGetPoseState(unsigned int action, rlActionDevices device) {
     XrActionStatePose state = {XR_TYPE_ACTION_STATE_POSE};
     XrResult res = xrGetActionStatePose(rlxr.session, &getInfo, &state);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to get pose action (result: %d; action: %d)", res, action);
+        TRACELOG(LOG_ERROR, "XR: Failed to get pose action (action: %d; result: %s)", action, rlxrFormatResult(res));
         return (rlPoseState){ (rlPose){ {}, {}, 0, 0 }, 0 };
     }
 
@@ -1700,7 +1719,7 @@ rlPoseState rlGetPoseState(unsigned int action, rlActionDevices device) {
     XrSpaceLocation location = {XR_TYPE_SPACE_LOCATION};
     res = xrLocateSpace(device == RLXR_HAND_LEFT ? ac->actionSpaces[0] : ac->actionSpaces[1], rlxr.referenceSpace, rlxr.frameState.predictedDisplayTime, &location);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to locate pose space (result: %d; action: %d)", res, action);
+        TRACELOG(LOG_ERROR, "XR: Failed to locate pose space (action: %d; result: %s)", action, rlxrFormatResult(res));
         return (rlPoseState){ (rlPose){ {}, {}, 0, 0 }, true };
     }
 
@@ -1742,7 +1761,7 @@ void rlApplyHaptic(unsigned int action, rlActionDevices device, long duration, f
 
     XrResult res = xrApplyHapticFeedback(rlxr.session, &hapticInfo, (XrHapticBaseHeader *)&vibration);
     if (XR_FAILED(res)) {
-        TRACELOG(LOG_ERROR, "XR: Failed to apply haptic action (result: %d; action: %d)", res, action);
+        TRACELOG(LOG_ERROR, "XR: Failed to apply haptic action (action: %d; result: %s)", action, rlxrFormatResult(res));
     }
 }
 
