@@ -448,7 +448,6 @@ static bool rlxrInitInstance() {
         }
     }
 
-    // FIXME: XR_EXT_debug_utils setup
     res = xrGetInstanceProcAddr(rlxr.instance, "xrGetOpenGLGraphicsRequirementsKHR", (PFN_xrVoidFunction *)&rlxr.pfnGetOpenGLGraphicsRequirementsKHR);
     if (XR_FAILED(res)) {
         TRACELOG(LOG_ERROR, "XR: Failed to init OpenGL bindings (%s)", rlxrFormatResult(res));
@@ -537,7 +536,7 @@ static int64_t rlxrChooseSwapchainFormat(int64_t preferred, bool fallback) {
         return -1;
     }
 
-    int64_t format = fallback ? -1 : formats[0];
+    int64_t format = fallback ? formats[0] : -1;
     for (int i = 0; i < formatCount; i++) {
         if (formats[i] == preferred)
             format = preferred;
@@ -669,7 +668,7 @@ static bool rlxrInitSession() {
 
     // init swapchains
 
-    int64_t colorFormat = rlxrChooseSwapchainFormat(GL_RGBA16F, true);
+    int64_t colorFormat = rlxrChooseSwapchainFormat(GL_SRGB8_ALPHA8, true);
     int64_t depthFormat = rlxrChooseSwapchainFormat(GL_DEPTH_COMPONENT16, false);
 
     rlxr.depthSupported = true;
