@@ -1,6 +1,8 @@
 #include "raylib.h"
 #include "raymath.h"
 
+#define RLXR_APP_NAME "Rlxr example - actions"
+
 #define RLXR_IMPLEMENTATION
 #include "rlxr.h"
 

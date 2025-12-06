@@ -8,9 +8,13 @@
  *
  *      #define RLXR_APP_NAME "My Project"
  *          Sets the string reported to the OpenXR runtime as the application name.
+ *          This string is displayed in the runtime UI and all runtime settings are
+ *          tied to this name, therefore it should not change between reruns.
  *
  *      #define RLXR_ENGINE_NAME "My Engine"
  *          Sets the string reported to the OpenXR runtime as the engine name.
+ *          It's discouraged to redefine this as for all intents and purposes,
+ *          this should be set to the dafault value of "raylib / rlxr".
  */
 
 #ifndef RLXR_H
@@ -77,7 +81,7 @@
 #endif
 
 #ifndef RLXR_ENGINE_NAME
-    #define RLXR_ENGINE_NAME "raylib"
+    #define RLXR_ENGINE_NAME "raylib / rlxr"
 #endif
 
 //----------------------------------------------------------------------------------
@@ -968,7 +972,7 @@ void UpdateXr() {
                     }
                 }
                 if (state->state == XR_SESSION_STATE_EXITING) {
-                    TRACELOG(LOG_ERROR, "XR: Session exiting; rlxr disconnected.");
+                    TRACELOG(LOG_INFO, "XR: Session exiting; rlxr disconnected.");
 
                     rlxr.state = XR_SESSION_STATE_EXITING;
                     return;
