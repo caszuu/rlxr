@@ -225,7 +225,7 @@ RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long durat
 #define XR_USE_GRAPHICS_API_OPENGL
 
 // Select xr platform and include headers for window handles (required for XrGraphicsBinding...)
-#if defined(WIN32)
+#if defined(_WIN32)
     #define XR_USE_PLATFORM_WIN32
 
     // Move windows.h symbols to new names to avoid redefining the same names as raylib (https://github.com/raysan5/raylib/blob/3ba186f2c1d6f307740d313653772f0a312f5ec3/src/platforms/rcore_desktop_win32.c#L48)

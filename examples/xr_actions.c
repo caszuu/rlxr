@@ -124,16 +124,16 @@ int main(void) {
 
             ClearBackground(BLANK); // (fully transparent)
         
-            DrawText(TextFormat("Select - left: %b right: %b", leftSelectPressed, rightSelectPressed), 32, 128, 26, BLACK);
-            DrawText(TextFormat("Menu state - value: %b active: %b changed: %b", menuState.value, menuState.active, menuState.changed), 32, 154, 26, BLACK);
+            DrawText(TextFormat("Select - left: %d right: %d", leftSelectPressed, rightSelectPressed), 32, 128, 26, BLACK);
+            DrawText(TextFormat("Menu state - value: %d active: %d changed: %d", menuState.value, menuState.active, menuState.changed), 32, 154, 26, BLACK);
 
             DrawText("Left Hand:", 32, 200, 26, BLACK);
-            DrawText(TextFormat("    valid: %b; position: %.04f %.04f %.04f", world.hands[0].isPositionValid, world.hands[0].position.x, world.hands[0].position.y, world.hands[0].position.z), 32, 226, 26, BLACK);
-            DrawText(TextFormat("    valid: %b; orientation: %.04f %.04f %.04f %.04f", world.hands[0].isOrientationValid, world.hands[0].orientation.x, world.hands[0].orientation.y, world.hands[0].orientation.z, world.hands[0].orientation.w), 32, 252, 26, BLACK);
+            DrawText(TextFormat("    valid: %d; position: %.04f %.04f %.04f", world.hands[0].isPositionValid, world.hands[0].position.x, world.hands[0].position.y, world.hands[0].position.z), 32, 226, 26, BLACK);
+            DrawText(TextFormat("    valid: %d; orientation: %.04f %.04f %.04f %.04f", world.hands[0].isOrientationValid, world.hands[0].orientation.x, world.hands[0].orientation.y, world.hands[0].orientation.z, world.hands[0].orientation.w), 32, 252, 26, BLACK);
 
             DrawText("Right Hand:", 32, 300, 26, BLACK);
-            DrawText(TextFormat("    valid: %b; position: %.04f %.04f %.04f", world.hands[1].isPositionValid, world.hands[1].position.x, world.hands[1].position.y, world.hands[1].position.z), 32, 326, 26, BLACK);
-            DrawText(TextFormat("    valid: %b; orientation: %.04f %.04f %.04f %.04f", world.hands[1].isOrientationValid, world.hands[1].orientation.x, world.hands[1].orientation.y, world.hands[1].orientation.z, world.hands[1].orientation.w), 32, 352, 26, BLACK);
+            DrawText(TextFormat("    valid: %d; position: %.04f %.04f %.04f", world.hands[1].isPositionValid, world.hands[1].position.x, world.hands[1].position.y, world.hands[1].position.z), 32, 326, 26, BLACK);
+            DrawText(TextFormat("    valid: %d; orientation: %.04f %.04f %.04f %.04f", world.hands[1].isOrientationValid, world.hands[1].orientation.x, world.hands[1].orientation.y, world.hands[1].orientation.z, world.hands[1].orientation.w), 32, 352, 26, BLACK);
 
             DrawRectangleLines(16, 112, 784, 282, BLACK);
 
