@@ -225,7 +225,7 @@ RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long durat
 #define XR_USE_GRAPHICS_API_OPENGL
 
 // Select xr platform and include headers for window handles (required for XrGraphicsBinding...)
-#if defined(WIN32)
+#if defined(_WIN32)
     #define XR_USE_PLATFORM_WIN32
 
     // Move windows.h symbols to new names to avoid redefining the same names as raylib (https://github.com/raysan5/raylib/blob/3ba186f2c1d6f307740d313653772f0a312f5ec3/src/platforms/rcore_desktop_win32.c#L48)
@@ -383,6 +383,19 @@ inline static bool rlxrIsSessionRunning() {
     switch (rlxr.state) {
     case XR_SESSION_STATE_READY:
     case XR_SESSION_STATE_SYNCHRONIZED:
+    case XR_SESSION_STATE_VISIBLE:
+    case XR_SESSION_STATE_FOCUSED:
+        return true;
+
+    default:
+        return false;
+    }
+}
+
+inline static bool rlxrIsSessionVisible() {
+    if (!rlxr.instance) return false;
+
+    switch (rlxr.state) {
     case XR_SESSION_STATE_VISIBLE:
     case XR_SESSION_STATE_FOCUSED:
         return true;
@@ -946,7 +959,7 @@ void UpdateXr() {
                 TRACELOG(LOG_ERROR, "XR: Instance loss pending; rlxr disconnected.");
 
                 rlxr.state = XR_SESSION_STATE_LOSS_PENDING;
-                return;
+                break;
 
             case XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING:
                 // TODO: ref space
@@ -963,32 +976,37 @@ void UpdateXr() {
                     XrResult res = xrBeginSession(rlxr.session, &beginInfo);
                     if (XR_FAILED(res)) {
                         TRACELOG(LOG_ERROR, "XR: Failed to begin session (%s)", rlxrFormatResult(res));
+                        break;
                     }
                 }
                 if (state->state == XR_SESSION_STATE_STOPPING) {
                     XrResult res = xrEndSession(rlxr.session);
                     if (XR_FAILED(res)) {
                         TRACELOG(LOG_ERROR, "XR: Failed to end session (%s)", rlxrFormatResult(res));
+                        break;
                     }
                 }
                 if (state->state == XR_SESSION_STATE_EXITING) {
                     TRACELOG(LOG_INFO, "XR: Session exiting; rlxr disconnected.");
 
                     rlxr.state = XR_SESSION_STATE_EXITING;
-                    return;
+                    break;
                 }
                 if (state->state == XR_SESSION_STATE_LOSS_PENDING) {
                     TRACELOG(LOG_ERROR, "XR: Session loss pending; rlxr disconnected.");
 
                     rlxr.state = XR_SESSION_STATE_LOSS_PENDING;
-                    return;
+                    break;
                 }
 
+                TRACELOG(LOG_DEBUG, "XR: Session state changed: %d -> %d", rlxr.state, state->state);
                 rlxr.state = state->state;
+
                 break;
             }
 
             default:
+                TRACELOG(LOG_DEBUG, "XR: received unknown event type %d, ignoring", ev.type);
                 break;
         }
     }
@@ -1196,7 +1214,7 @@ int BeginXrMode() {
     assert(!rlxr.frameActive);
 
     if (!rlxrIsSessionRunning()) {
-        return 0; // session not yet synchronized, skip this frame
+        return 0; // rendering not requested from the runtime yet, skip this frame
     }
 
     // locate view poses
@@ -1232,6 +1250,14 @@ int BeginXrMode() {
 
     rlxr.frameActive = true;
     rlxr.viewActiveIndex = ~0;
+
+    // allow rendering only when state is XR_SESSION_STATE_VISIBLE or _FOCUSED
+    // NOTE: this is *required* for SteamVR on Linux to not crash
+    rlxr.frameState.shouldRender = rlxr.frameState.shouldRender && rlxrIsSessionVisible();
+
+    if (!rlxr.frameState.shouldRender) {
+        return 0; // runtime requested to not render anything, skip views for this frame
+    }
 
     return rlxr.viewCount;
 }
