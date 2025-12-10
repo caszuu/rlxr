@@ -268,6 +268,11 @@ RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long durat
     #define XR_USE_GRAPHICS_API_OPENGL_ES
 
     #include <EGL/egl.h>
+    #include <jni.h> // defines jobject required by openxr_platform.h
+
+    // pull-in a non-public function from rcore_android.c, used by platform bindings
+    #include "android_native_app_glue.h"
+struct android_app *GetAndroidApp(void);
 
 #else
     #define XR_USE_PLATFORM_XLIB
@@ -276,8 +281,8 @@ RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long durat
     // workaround for raylib / Xlib name collision (https://github.com/raysan5/raylib/blob/59546eb54ad950eb882627670c759a595d338acf/src/platforms/rcore_desktop_glfw.c#L79)
     #define Font X11Font
 
-    #include <X11/Xlib.h>
     #include <GL/glx.h>
+    #include <X11/Xlib.h>
 
     #undef Font
 
@@ -290,14 +295,14 @@ RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long durat
 
 #if defined(XR_USE_GRAPHICS_API_OPENGL)
     #include <GL/gl.h>
-    #include <GL/glext.h>  // required for format enums
+    #include <GL/glext.h> // required for format enums
 
     #define RLXR_ACTIVE_SWAPCHAIN_IMAGE_TYPE XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_KHR
-    typedef XrSwapchainImageOpenGLKHR rlxrSwapchainImage;
+typedef XrSwapchainImageOpenGLKHR rlxrSwapchainImage;
 #elif defined(XR_USE_GRAPHICS_API_OPENGL_ES)
     #include <GLES3/gl3.h> // required for format enums
 
-    typedef XrSwapchainImageOpenGLESKHR rlxrSwapchainImage;
+typedef XrSwapchainImageOpenGLESKHR rlxrSwapchainImage;
     #define RLXR_ACTIVE_SWAPCHAIN_IMAGE_TYPE XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_ES_KHR
 #else
     #error "No supported graphics api found."
@@ -305,9 +310,6 @@ RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long durat
 
 #include "raymath.h"
 #include "rlgl.h"
-
-#include <GL/gl.h>
-#include <GL/glext.h> // required for format enums
 
 #include <assert.h>
 #include <stdint.h> // for openxr ints
@@ -417,6 +419,7 @@ typedef struct {
 
         bool glEnable;
         bool glesEnable;
+        bool androidInstance;
     } ext;
 } rlxrState;
 
@@ -482,6 +485,45 @@ static const char *rlxrFormatResult(XrResult res) {
 // Module Functions Definition - OpenXR state managment
 //----------------------------------------------------------------------------------
 
+static bool rlxrInitLoader() {
+    // platform-specific loader initializers
+
+    static bool loaderInitialized = false;
+    if (loaderInitialized)
+        return true;
+
+#ifdef XR_USE_PLATFORM_ANDROID
+    {
+        // attach to the JNI and JVM which is required by the OpenXR Loader
+        // JNIEnv* env = AttachCurrentThread(); TODO: is this required?
+        struct android_app *android = GetAndroidApp();
+
+        PFN_xrInitializeLoaderKHR pfnXrInitializeLoaderKHR = NULL;
+        XrResult res = xrGetInstanceProcAddr(XR_NULL_HANDLE, "xrInitializeLoaderKHR", (PFN_xrVoidFunction *)&pfnXrInitializeLoaderKHR);
+
+        if (XR_FAILED(res) || !pfnXrInitializeLoaderKHR)
+        {
+            TRACELOG(LOG_ERROR, "XR: Failed to get loader entrypoint. (%d)", res);
+            return false;
+        }
+
+        XrLoaderInitInfoAndroidKHR loaderInfo = {XR_TYPE_LOADER_INIT_INFO_ANDROID_KHR};
+        loaderInfo.applicationVM = android->activity->vm;
+        loaderInfo.applicationContext = android->activity->clazz;
+
+        res = pfnXrInitializeLoaderKHR((XrLoaderInitInfoBaseHeaderKHR *)&loaderInfo);
+        if (XR_FAILED(res))
+        {
+            TRACELOG(LOG_ERROR, "XR: Failed to init loader. (%d)", res);
+            return false;
+        }
+    }
+#endif
+
+    loaderInitialized = true;
+    return true;
+}
+
 static inline bool rlxrIsExtAvailable(const char *name, XrExtensionProperties *exts, uint32_t extCount) {
     for (int i = 0; i < extCount; i++)
     {
@@ -522,7 +564,7 @@ static bool rlxrEnumerateExtensions(XrInstanceCreateInfo *info) {
 
     // select wanted extensions from the available exts
 
-    static const char *enabled[2];
+    static const char *enabled[3];
     uint32_t enabledCount = 0;
 
     // feature exts //
@@ -534,6 +576,16 @@ static bool rlxrEnumerateExtensions(XrInstanceCreateInfo *info) {
     }
 
     // platform exts //
+
+#ifdef XR_USE_PLATFORM_ANDROID
+    if (rlxrIsExtAvailable(XR_KHR_ANDROID_CREATE_INSTANCE_EXTENSION_NAME, available, availableCount))
+    {
+        enabled[enabledCount++] = XR_KHR_ANDROID_CREATE_INSTANCE_EXTENSION_NAME;
+        rlxr.ext.androidInstance = true;
+    }
+
+        // note: if XR_KHR_android_create_instance is not supported, then it's probably not required
+#endif
 
 #if defined(XR_USE_GRAPHICS_API_OPENGL)
     if (rlxrIsExtAvailable(XR_KHR_OPENGL_ENABLE_EXTENSION_NAME, available, availableCount))
@@ -571,6 +623,20 @@ static bool rlxrEnumerateExtensions(XrInstanceCreateInfo *info) {
 }
 
 static bool rlxrAddPlatformInfo(XrInstanceCreateInfo *info) {
+#ifdef XR_USE_PLATFORM_ANDROID
+    if (rlxr.ext.androidInstance)
+    {
+        struct android_app *android = GetAndroidApp();
+
+        static XrInstanceCreateInfoAndroidKHR androidInfo = {XR_TYPE_INSTANCE_CREATE_INFO_ANDROID_KHR};
+        androidInfo.applicationVM = android->activity->vm;
+        androidInfo.applicationActivity = android->activity->clazz;
+
+        androidInfo.next = info->next;
+        info->next = &androidInfo;
+    }
+#endif
+
     return true;
 }
 
@@ -618,7 +684,8 @@ static bool rlxrInitInstance() {
     res = xrGetInstanceProcAddr(rlxr.instance, "xrGetOpenGLESGraphicsRequirementsKHR", (PFN_xrVoidFunction *)&rlxr.pfn.GetOpenGLESGraphicsRequirementsKHR);
 #endif
 
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to fetch graphics bindings (%s)", rlxrFormatResult(res));
         return false;
     }
@@ -768,7 +835,8 @@ static bool rlxrInitSession() {
     XrResult res = rlxr.pfn.GetOpenGLESGraphicsRequirementsKHR(rlxr.instance, rlxr.system, &openglReqs);
 #endif
 
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to fetch graphics API requirements (%s)", rlxrFormatResult(res));
         return false;
     }
@@ -943,7 +1011,8 @@ static bool rlxrInitSession() {
         }
 
         view->colorImages = (rlxrSwapchainImage *)RL_MALLOC(view->colorImageCount * sizeof(view->colorImages[0]));
-        for (int i = 0; i < view->colorImageCount; i++) {
+        for (int i = 0; i < view->colorImageCount; i++)
+        {
             view->colorImages[i].type = RLXR_ACTIVE_SWAPCHAIN_IMAGE_TYPE;
             view->colorImages[i].next = 0;
         }
@@ -991,7 +1060,8 @@ static bool rlxrInitSession() {
             }
 
             view->depthImages = (rlxrSwapchainImage *)RL_MALLOC(view->depthImageCount * sizeof(view->depthImages[0]));
-            for (int i = 0; i < view->depthImageCount; i++) {
+            for (int i = 0; i < view->depthImageCount; i++)
+            {
                 view->depthImages[i].type = RLXR_ACTIVE_SWAPCHAIN_IMAGE_TYPE;
                 view->depthImages[i].next = 0;
             }
@@ -1082,6 +1152,7 @@ bool InitXr() {
 
     memset(&rlxr, 0, sizeof(rlxr));
 
+    if (!rlxrInitLoader()) return false;
     if (!rlxrInitInstance()) return false;
     if (!rlxrInitSession()) return false;
 
