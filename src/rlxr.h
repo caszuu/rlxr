@@ -233,11 +233,10 @@ RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long durat
 
 #if defined(RLXR_IMPLEMENTATION)
 
-#define XR_USE_GRAPHICS_API_OPENGL
-
 // Select xr platform and include headers for window handles (required for XrGraphicsBinding...)
 #if defined(_WIN32)
     #define XR_USE_PLATFORM_WIN32
+    #define XR_USE_GRAPHICS_API_OPENGL
 
     // Move windows.h symbols to new names to avoid redefining the same names as raylib (https://github.com/raysan5/raylib/blob/3ba186f2c1d6f307740d313653772f0a312f5ec3/src/platforms/rcore_desktop_win32.c#L48)
     #define CloseWindow CloseWindowWin32
@@ -264,14 +263,21 @@ RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long durat
 
     #include <unknwn.h> // defines IUnknown required by openxr_platform.h
 
+#elif defined(__ANDROID__)
+    #define XR_USE_PLATFORM_ANDROID
+    #define XR_USE_GRAPHICS_API_OPENGL_ES
+
+    #include <EGL/egl.h>
+
 #else
     #define XR_USE_PLATFORM_XLIB
+    #define XR_USE_GRAPHICS_API_OPENGL
 
     // workaround for raylib / Xlib name collision (https://github.com/raysan5/raylib/blob/59546eb54ad950eb882627670c759a595d338acf/src/platforms/rcore_desktop_glfw.c#L79)
     #define Font X11Font
 
-    #include <GL/glx.h>
     #include <X11/Xlib.h>
+    #include <GL/glx.h>
 
     #undef Font
 
@@ -281,6 +287,21 @@ RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long durat
 
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
+
+#if defined(XR_USE_GRAPHICS_API_OPENGL)
+    #include <GL/gl.h>
+    #include <GL/glext.h>  // required for format enums
+
+    #define RLXR_ACTIVE_SWAPCHAIN_IMAGE_TYPE XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_KHR
+    typedef XrSwapchainImageOpenGLKHR rlxrSwapchainImage;
+#elif defined(XR_USE_GRAPHICS_API_OPENGL_ES)
+    #include <GLES3/gl3.h> // required for format enums
+
+    typedef XrSwapchainImageOpenGLESKHR rlxrSwapchainImage;
+    #define RLXR_ACTIVE_SWAPCHAIN_IMAGE_TYPE XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_ES_KHR
+#else
+    #error "No supported graphics api found."
+#endif
 
 #include "raymath.h"
 #include "rlgl.h"
@@ -305,8 +326,8 @@ extern "C" {
 //----------------------------------------------------------------------------------
 
 typedef struct {
-    XrSwapchainImageOpenGLKHR *colorImages;
-    XrSwapchainImageOpenGLKHR *depthImages;
+    rlxrSwapchainImage *colorImages;
+    rlxrSwapchainImage *depthImages;
     unsigned int colorImageCount;
     unsigned int depthImageCount;
 
@@ -384,12 +405,18 @@ typedef struct {
     // extended functions //
 
     struct {
+#if defined(XR_USE_GRAPHICS_API_OPENGL)
         PFN_xrGetOpenGLGraphicsRequirementsKHR GetOpenGLGraphicsRequirementsKHR;
+#elif defined(XR_USE_GRAPHICS_API_OPENGL_ES)
+        PFN_xrGetOpenGLESGraphicsRequirementsKHR GetOpenGLESGraphicsRequirementsKHR;
+#endif
     } pfn;
 
     struct {
         bool localFloor;
+
         bool glEnable;
+        bool glesEnable;
     } ext;
 } rlxrState;
 
@@ -508,6 +535,7 @@ static bool rlxrEnumerateExtensions(XrInstanceCreateInfo *info) {
 
     // platform exts //
 
+#if defined(XR_USE_GRAPHICS_API_OPENGL)
     if (rlxrIsExtAvailable(XR_KHR_OPENGL_ENABLE_EXTENSION_NAME, available, availableCount))
     {
         enabled[enabledCount++] = XR_KHR_OPENGL_ENABLE_EXTENSION_NAME;
@@ -519,6 +547,19 @@ static bool rlxrEnumerateExtensions(XrInstanceCreateInfo *info) {
         TRACELOG(LOG_ERROR, "XR: Runtime doesn't support OpenGL, cannot init XR.");
         return false;
     }
+#elif defined(XR_USE_GRAPHICS_API_OPENGL_ES)
+    if (rlxrIsExtAvailable(XR_KHR_OPENGL_ES_ENABLE_EXTENSION_NAME, available, availableCount))
+    {
+        enabled[enabledCount++] = XR_KHR_OPENGL_ES_ENABLE_EXTENSION_NAME;
+        rlxr.ext.glesEnable = true;
+    } else
+    {
+        RL_FREE(available);
+
+        TRACELOG(LOG_ERROR, "XR: Runtime doesn't support OpenGL ES, cannot init XR.");
+        return false;
+    }
+#endif
 
     // add exts to info
 
@@ -571,10 +612,14 @@ static bool rlxrInitInstance() {
 
     // get graphics binding pfns
 
+#if defined(XR_USE_GRAPHICS_API_OPENGL)
     res = xrGetInstanceProcAddr(rlxr.instance, "xrGetOpenGLGraphicsRequirementsKHR", (PFN_xrVoidFunction *)&rlxr.pfn.GetOpenGLGraphicsRequirementsKHR);
-    if (XR_FAILED(res))
-    {
-        TRACELOG(LOG_ERROR, "XR: Failed to init OpenGL bindings (%s)", rlxrFormatResult(res));
+#elif defined(XR_USE_GRAPHICS_API_OPENGL_ES)
+    res = xrGetInstanceProcAddr(rlxr.instance, "xrGetOpenGLESGraphicsRequirementsKHR", (PFN_xrVoidFunction *)&rlxr.pfn.GetOpenGLESGraphicsRequirementsKHR);
+#endif
+
+    if (XR_FAILED(res)) {
+        TRACELOG(LOG_ERROR, "XR: Failed to fetch graphics bindings (%s)", rlxrFormatResult(res));
         return false;
     }
 
@@ -689,6 +734,9 @@ typedef union {
 #ifdef XR_USE_PLATFORM_WAYLAND
     XrGraphicsBindingOpenGLWaylandKHR wayland;
 #endif
+#ifdef XR_USE_PLATFORM_ANDROID
+    XrGraphicsBindingOpenGLESAndroidKHR android;
+#endif
 
 } rlxrGraphicsBindingOpenGL;
 
@@ -703,18 +751,25 @@ typedef union {
 #ifdef XR_USE_PLATFORM_WAYLAND
     struct wl_display *wayland;
 #endif
+#ifdef XR_USE_PLATFORM_ANDROID
+    EGLContext android;
+#endif
 
 } rlxrGraphicsContext;
 
 static bool rlxrInitSession() {
     // rlgl graphics binding
 
+#if defined(XR_USE_GRAPHICS_API_OPENGL)
     XrGraphicsRequirementsOpenGLKHR openglReqs = {XR_TYPE_GRAPHICS_REQUIREMENTS_OPENGL_KHR};
-
     XrResult res = rlxr.pfn.GetOpenGLGraphicsRequirementsKHR(rlxr.instance, rlxr.system, &openglReqs);
-    if (XR_FAILED(res))
-    {
-        TRACELOG(LOG_ERROR, "XR: Failed to fetch OpenGL requirements (%s)", rlxrFormatResult(res));
+#elif defined(XR_USE_GRAPHICS_API_OPENGL_ES)
+    XrGraphicsRequirementsOpenGLESKHR openglReqs = {XR_TYPE_GRAPHICS_REQUIREMENTS_OPENGL_ES_KHR};
+    XrResult res = rlxr.pfn.GetOpenGLESGraphicsRequirementsKHR(rlxr.instance, rlxr.system, &openglReqs);
+#endif
+
+    if (XR_FAILED(res)) {
+        TRACELOG(LOG_ERROR, "XR: Failed to fetch graphics API requirements (%s)", rlxrFormatResult(res));
         return false;
     }
 
@@ -722,8 +777,9 @@ static bool rlxrInitSession() {
 
     // note: this is a hacky solution taken from the Monado openxr-simple-example repo and only works for select platforms as openxr requires very low level handles.
     //       currently supported platforms are:
-    //         - GL/Win32 (fetching current WGL context)
-    //         - GL/Xlib (fetching current GLX context)
+    //         - GL/Win32     (fetching current WGL context)
+    //         - GL/Xlib      (fetching current GLX context)
+    //         - GLES/Android (fetching current EGL context and display, guessing / re-creating the config)
     //
     // - note on wayland: While the GraphicsBindingOpenGLWaylandKHR is implemented, it is almost universaly unsupported by runtimes. The most widely
     //                    used way to enable wayland support is currently the XR_MDNX_egl_enable extension, but that is Monado only. For now GraphicsBindingOpenGLWaylandKHR
@@ -762,6 +818,36 @@ static bool rlxrInitSession() {
         rlglInfo.wayland.display = ctx.wayland;
 
         TRACELOG(LOG_INFO, "XR: Detected graphics binding: Wayland");
+    } else
+#endif
+#ifdef XR_USE_PLATFORM_ANDROID
+    if ((ctx.android = eglGetCurrentContext())) {
+        rlglInfo.android = (XrGraphicsBindingOpenGLESAndroidKHR){XR_TYPE_GRAPHICS_BINDING_OPENGL_ES_ANDROID_KHR};
+        rlglInfo.android.display = eglGetCurrentDisplay();
+        rlglInfo.android.context = ctx.android;
+
+        // choose a framebuffer config (mirrors raylib rcore_android.c logic)
+        const EGLint framebufferAttribs[] = {
+            EGL_RENDERABLE_TYPE, (rlGetVersion() == RL_OPENGL_ES_30)? EGL_OPENGL_ES3_BIT : EGL_OPENGL_ES2_BIT, // Type of context support
+            EGL_RED_SIZE, 8,            // RED color bit depth (alternative: 5)
+            EGL_GREEN_SIZE, 8,          // GREEN color bit depth (alternative: 6)
+            EGL_BLUE_SIZE, 8,           // BLUE color bit depth (alternative: 5)
+            EGL_DEPTH_SIZE, 24,         // Depth buffer size
+            // EGL_STENCIL_SIZE, 8,      // Stencil buffer size
+            // EGL_SAMPLE_BUFFERS, 0,      // Activate MSAA
+            // EGL_SAMPLES, 0,             // 4x Antialiasing if activated (Free on MALI GPUs)
+            EGL_NONE
+        };
+
+        int numConfigs;
+        eglChooseConfig(rlglInfo.android.display, framebufferAttribs, &rlglInfo.android.config, 1, &numConfigs);
+
+        if (!numConfigs) {
+            TRACELOG(LOG_ERROR, "XR: Failed to choose an EGL config for XR framebuffers.");
+            return false;
+        }
+
+        TRACELOG(LOG_INFO, "XR: Detected graphics binding: Android");
     } else
 #endif
     {
@@ -856,10 +942,9 @@ static bool rlxrInitSession() {
             return false;
         }
 
-        view->colorImages = (XrSwapchainImageOpenGLKHR *)RL_MALLOC(view->colorImageCount * sizeof(view->colorImages[0]));
-        for (int i = 0; i < view->colorImageCount; i++)
-        {
-            view->colorImages[i].type = XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_KHR;
+        view->colorImages = (rlxrSwapchainImage *)RL_MALLOC(view->colorImageCount * sizeof(view->colorImages[0]));
+        for (int i = 0; i < view->colorImageCount; i++) {
+            view->colorImages[i].type = RLXR_ACTIVE_SWAPCHAIN_IMAGE_TYPE;
             view->colorImages[i].next = 0;
         }
 
@@ -905,10 +990,9 @@ static bool rlxrInitSession() {
                 return false;
             }
 
-            view->depthImages = (XrSwapchainImageOpenGLKHR *)RL_MALLOC(view->depthImageCount * sizeof(view->depthImages[0]));
-            for (int i = 0; i < view->depthImageCount; i++)
-            {
-                view->depthImages[i].type = XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_KHR;
+            view->depthImages = (rlxrSwapchainImage *)RL_MALLOC(view->depthImageCount * sizeof(view->depthImages[0]));
+            for (int i = 0; i < view->depthImageCount; i++) {
+                view->depthImages[i].type = RLXR_ACTIVE_SWAPCHAIN_IMAGE_TYPE;
                 view->depthImages[i].next = 0;
             }
 
