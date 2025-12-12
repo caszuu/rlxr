@@ -2,7 +2,6 @@
 #include "raymath.h"
 
 #define RLXR_APP_NAME "Rlxr example - actions"
-
 #define RLXR_IMPLEMENTATION
 #include "rlxr.h"
 
@@ -18,30 +17,33 @@ typedef struct {
 
 static void drawScene(WorldState *state);
 
+/* clang-format off */
+
 int main(void) {
     // Initialization
     //--------------------------------------------------------------------------------------
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "rlxr sample - xr action basics");
+    InitWindow(screenWidth, screenHeight, "Rlxr example - actions");
 
     // Initialize the XR runtime, exit if no XR runtime found
     bool success = InitXr();
-    if (!success) {
+    if (!success)
+    {
         return -1;
     }
 
     // Position the XR play space and the player in the scene
-    SetXrPosition((Vector3){ 0.0f, 1.5f, 0.0f });
+    SetXrPosition((Vector3){0.0f, 1.5f, 0.0f});
 
     // Define a camera to mirror the XR view for the flatscreen window
-    Camera camera = { 0 };
-    camera.position = (Vector3){ 0.0f, 1.5f, 0.0f };   // Camera position
-    camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };     // Camera looking at point
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };         // Camera up vector (rotation towards target)
-    camera.fovy = 45.0f;                               // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;            // Camera projection type
+    Camera camera = {0};
+    camera.position = (Vector3){0.0f, 1.5f, 0.0f}; // Camera position
+    camera.target = (Vector3){0.0f, 0.0f, 0.0f};   // Camera looking at point
+    camera.up = (Vector3){0.0f, 1.0f, 0.0f};       // Camera up vector (rotation towards target)
+    camera.fovy = 45.0f;                           // Camera field-of-view Y
+    camera.projection = CAMERA_PERSPECTIVE;        // Camera projection type
 
     // Setup Actions
     //--------------------------------------------------------------------------------------
@@ -80,7 +82,8 @@ int main(void) {
     world.textPanel.mat = LoadMaterialDefault();
     SetMaterialTexture(&world.textPanel.mat, MATERIAL_MAP_DIFFUSE, panelTarget.texture);
 
-    while (!WindowShouldClose() && IsXrConnected()) {
+    while (!WindowShouldClose() && IsXrConnected())
+    {
         // Update
         //----------------------------------------------------------------------------------
 
@@ -91,11 +94,13 @@ int main(void) {
 
         rlPose viewPose = GetXrViewPose();
 
-        if (viewPose.isPositionValid) {
+        if (viewPose.isPositionValid)
+        {
             camera.position = viewPose.position;
         }
 
-        if (viewPose.isOrientationValid) {
+        if (viewPose.isOrientationValid)
+        {
             // camera conversion snippet from https://github.com/FireFlyForLife/rlOpenXR/blob/2fd2433eec8a096dd67c26c94671c4976f9b7dd8/src/rlOpenXR.cpp#L869
 
             camera.target = Vector3Add(Vector3RotateByQuaternion((Vector3){0.0f, 0.0f, -1.0f}, viewPose.orientation), viewPose.position);
@@ -106,10 +111,10 @@ int main(void) {
         // note: a rlGet* call can only fetch from a single device at once so a source device must be passed in
         bool leftSelectPressed = rlGetBool(select, RLXR_HAND_LEFT);
         bool rightSelectPressed = rlGetBool(select, RLXR_HAND_RIGHT);
-        
+
         // fetch a full action state from a source device, this is identical to the simpler version above but it adds a few bits about the source device
         rlBoolState menuState = rlGetBoolState(menu, RLXR_HAND_LEFT);
-        
+
         // menuState.value - the current input value
         // menuState.active - is there a component / binding that is awake and active for this action (eg. false if the source controller is sleeping)
         // menuState.changed - did .value change since the last UpdateXr() call
@@ -123,7 +128,7 @@ int main(void) {
         BeginTextureMode(panelTarget);
 
             ClearBackground(BLANK); // (fully transparent)
-        
+
             DrawText(TextFormat("Select - left: %d right: %d", leftSelectPressed, rightSelectPressed), 32, 128, 26, BLACK);
             DrawText(TextFormat("Menu state - value: %d active: %d changed: %d", menuState.value, menuState.active, menuState.changed), 32, 154, 26, BLACK);
 
@@ -145,10 +150,11 @@ int main(void) {
         // Begin new XR frame, the number of views (cameras) to render requested by the XR runtime is returned.
         int views = BeginXrMode();
 
-        for (int i = 0; i < views; i++) {
+        for (int i = 0; i < views; i++)
+        {
             // Begin a XR view, this will setup 3D rendering from the perspective of the view
             BeginView(i);
-            
+
                 ClearBackground(RAYWHITE);
                 drawScene(&world);
 
@@ -165,13 +171,13 @@ int main(void) {
         BeginDrawing();
 
             ClearBackground(RAYWHITE);
-        
+
             BeginMode3D(camera);
                 drawScene(&world);
             EndMode3D();
 
             DrawFPS(10, 10);
-        
+
         EndDrawing();
     }
 
@@ -181,19 +187,23 @@ int main(void) {
     CloseWindow();
 }
 
+/* clang-format on */
+
 static void drawScene(WorldState *world) {
     // draw controller cubes
 
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 2; i++)
+    {
         rlPose hand = world->hands[i];
 
-        if (hand.isPositionValid && hand.isOrientationValid) {
+        if (hand.isPositionValid && hand.isOrientationValid)
+        {
             rlPushMatrix();
-                rlTranslatef(hand.position.x, hand.position.y, hand.position.z);
-                rlMultMatrixf(MatrixToFloat(QuaternionToMatrix(hand.orientation)));
+            rlTranslatef(hand.position.x, hand.position.y, hand.position.z);
+            rlMultMatrixf(MatrixToFloat(QuaternionToMatrix(hand.orientation)));
 
-                DrawCube((Vector3){ 0.0f, 0.0f, 0.0f }, .08f, .1f, .12f, i == 1 ? ORANGE : BLUE);
-                DrawCubeWires((Vector3){ 0.0f, 0.0f, 0.0f }, .08f, .1f, .12f, i == 1 ? RED : DARKBLUE);
+            DrawCube((Vector3){0.0f, 0.0f, 0.0f}, .08f, .1f, .12f, i == 1 ? ORANGE : BLUE);
+            DrawCubeWires((Vector3){0.0f, 0.0f, 0.0f}, .08f, .1f, .12f, i == 1 ? RED : DARKBLUE);
             rlPopMatrix();
         }
     }
@@ -202,12 +212,12 @@ static void drawScene(WorldState *world) {
 
     rlPushMatrix();
 
-        rlTranslatef(.0f, 1.2f, -1.5f);
-        rlRotatef(90.f, 1.f, .0f, .0f);
+    rlTranslatef(.0f, 1.2f, -1.5f);
+    rlRotatef(90.f, 1.f, .0f, .0f);
 
-        rlSetCullFace(RL_CULL_FACE_FRONT);
-        DrawMesh(world->textPanel.mesh, world->textPanel.mat, MatrixIdentity());
-        rlSetCullFace(RL_CULL_FACE_BACK);
+    rlSetCullFace(RL_CULL_FACE_FRONT);
+    DrawMesh(world->textPanel.mesh, world->textPanel.mat, MatrixIdentity());
+    rlSetCullFace(RL_CULL_FACE_BACK);
 
     rlPopMatrix();
 

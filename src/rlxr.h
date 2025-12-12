@@ -34,30 +34,30 @@
 // NOTE: Microsoft specifiers to tell compiler that symbols are imported/exported from a .dll
 // NOTE: visibility(default) attribute makes symbols "visible" when compiled with -fvisibility=hidden
 #if defined(_WIN32) && defined(BUILD_LIBTYPE_SHARED)
-    #define RLAPI __declspec(dllexport)     // We are building the library as a Win32 shared library (.dll)
+    #define RLAPI __declspec(dllexport) // We are building the library as a Win32 shared library (.dll)
 #elif defined(BUILD_LIBTYPE_SHARED)
     #define RLAPI __attribute__((visibility("default"))) // We are building the library as a Unix shared library (.so/.dylib)
 #elif defined(_WIN32) && defined(USE_LIBTYPE_SHARED)
-    #define RLAPI __declspec(dllimport)     // We are using the library as a Win32 shared library (.dll)
+    #define RLAPI __declspec(dllimport) // We are using the library as a Win32 shared library (.dll)
 #endif
 
 // Function specifiers definition
 #ifndef RLAPI
-    #define RLAPI       // Functions defined as 'extern' by default (implicit specifiers)
+    #define RLAPI // Functions defined as 'extern' by default (implicit specifiers)
 #endif
 
 // Allow custom memory allocators
 #ifndef RL_MALLOC
-    #define RL_MALLOC(sz)     malloc(sz)
+    #define RL_MALLOC(sz) malloc(sz)
 #endif
 #ifndef RL_CALLOC
-    #define RL_CALLOC(n,sz)   calloc(n,sz)
+    #define RL_CALLOC(n, sz) calloc(n, sz)
 #endif
 #ifndef RL_REALLOC
-    #define RL_REALLOC(n,sz)  realloc(n,sz)
+    #define RL_REALLOC(n, sz) realloc(n, sz)
 #endif
 #ifndef RL_FREE
-    #define RL_FREE(p)        free(p)
+    #define RL_FREE(p) free(p)
 #endif
 
 // Raylib TraceLog support
@@ -90,8 +90,9 @@
 #if (defined(__STDC__) && __STDC_VERSION__ >= 199901L) || (defined(_MSC_VER) && _MSC_VER >= 1800)
     #include <stdbool.h>
 #elif !defined(__cplusplus) && !defined(bool) && !defined(RL_BOOL_TYPE)
-    // Boolean type
-typedef enum bool { false = 0, true = !false } bool;
+// Boolean type
+typedef enum bool { false = 0,
+                    true = !false } bool;
 #endif
 
 typedef struct {
@@ -162,7 +163,7 @@ typedef struct {
 //----------------------------------------------------------------------------------
 
 #if defined(__cplusplus)
-extern "C" {            // Prevents name mangling of functions
+extern "C" {
 #endif
 
 RLAPI bool InitXr(); // returns true if successful, *must* be called after InitWindow or rlglInit
@@ -178,19 +179,19 @@ RLAPI rlXrState GetXrState(); // returns the current XR session state
 RLAPI rlPose GetXrViewPose();          // returns the pose of the users view (usually the centroid between XR views used in BeginView)
 RLAPI void SetXrPosition(Vector3 pos); // sets the offset of the reference frame, this offsets the entire play space (including the users cameras / views) by [pos] allowing you to move the player though-out the virtual space
 RLAPI void SetXrOrientation(Quaternion quat);
-RLAPI rlPose GetXrPose();              // fetches the current reference frame offsets
+RLAPI rlPose GetXrPose(); // fetches the current reference frame offsets
 
 // View Rendering
-RLAPI int BeginXrMode(); // returns the number of views that are requested by the xr runtime (returns 0 if rendering is not required by the runtime, eg. app is not visible to user)
-RLAPI void EndXrMode();  // end and submit frame, *must* be called even when 0 views are requested
+RLAPI int BeginXrMode();                  // returns the number of views that are requested by the xr runtime (returns 0 if rendering is not required by the runtime, eg. app is not visible to user)
+RLAPI void EndXrMode();                   // end and submit frame, *must* be called even when 0 views are requested
 RLAPI void BeginView(unsigned int index); // begin view with index in range [0, request_count), this sets up 3D rendering with an internal camera matching the view
-RLAPI void EndView();    // finish view and disable 3D rendering
+RLAPI void EndView();                     // finish view and disable 3D rendering
 
 // Action and Bindings
 RLAPI unsigned int rlLoadAction(const char *name, rlActionType type, rlActionDevices devices); // register a new action with the XR runtime; [mustn't be called after first UpdateXr() call]
-RLAPI void rlSuggestBinding(unsigned int action, rlActionComponent component); // suggest a binding for an action, this can be ignored / remapped by the XR runtime; [mustn't be called after first UpdateXr() call]
+RLAPI void rlSuggestBinding(unsigned int action, rlActionComponent component);                 // suggest a binding for an action, this can be ignored / remapped by the XR runtime; [mustn't be called after first UpdateXr() call]
 
-RLAPI void rlSuggestProfile(const char *profilePath); // select the interaction profile used for following binding suggestions (by default /interaction_profiles/khr/simple_controller), the same profile mustn't be selected twice; [mustn't be called after UpdateXr]
+RLAPI void rlSuggestProfile(const char *profilePath);                                                    // select the interaction profile used for following binding suggestions (by default /interaction_profiles/khr/simple_controller), the same profile mustn't be selected twice; [mustn't be called after UpdateXr]
 RLAPI void rlSuggestBindingPro(unsigned int action, rlActionDevices devices, const char *componentPath); // suggest a binding with a direct openxr component path; [mustn't be called after UpdateXr]
 
 // Action Fetchers - value only
@@ -215,12 +216,16 @@ RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long durat
 #endif // RLXR_H
 
 /***********************************************************************************
-*
-*   RLXR IMPLEMENTATION
-*
-************************************************************************************/
+ *
+ *   RLXR IMPLEMENTATION
+ *
+ ************************************************************************************/
 
 #if defined(RLXR_IMPLEMENTATION)
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
 #define XR_USE_GRAPHICS_API_OPENGL
 
@@ -240,26 +245,27 @@ RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long durat
     #define WIN32_LEAN_AND_MEAN
     #include <windows.h>
 
-    #undef CloseWindow      // raylib symbol collision
-    #undef Rectangle        // raylib symbol collision
-    #undef ShowCursor       // raylib symbol collision
-    #undef LoadImage        // raylib symbol collision
-    #undef DrawText         // raylib symbol collision
+    #undef CloseWindow // raylib symbol collision
+    #undef Rectangle   // raylib symbol collision
+    #undef ShowCursor  // raylib symbol collision
+    #undef LoadImage   // raylib symbol collision
+    #undef DrawText    // raylib symbol collision
     #undef DrawTextA
     #undef DrawTextW
-    #undef DrawTextEx       // raylib symbol collision
+    #undef DrawTextEx // raylib symbol collision
     #undef DrawTextExA
     #undef DrawTextExW
 
     #include <unknwn.h> // defines IUnknown required by openxr_platform.h
 
 #else
+    #define XR_USE_PLATFORM_XLIB
+
     // workaround for raylib / Xlib name collision (https://github.com/raysan5/raylib/blob/59546eb54ad950eb882627670c759a595d338acf/src/platforms/rcore_desktop_glfw.c#L79)
     #define Font X11Font
 
-    #define XR_USE_PLATFORM_XLIB
-    #include <X11/Xlib.h>
     #include <GL/glx.h>
+    #include <X11/Xlib.h>
 
     #undef Font
 
@@ -276,11 +282,11 @@ RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long durat
 #include <GL/gl.h>
 #include <GL/glext.h> // required for format enums
 
+#include <assert.h>
+#include <stdint.h> // for openxr ints
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h> // for openxr ints
 #include <string.h>
-#include <assert.h>
 
 #include <math.h>
 
@@ -293,7 +299,7 @@ typedef struct {
     XrSwapchainImageOpenGLKHR *depthImages;
     unsigned int colorImageCount;
     unsigned int depthImageCount;
-    
+
     XrSwapchain colorSwapchain;
     XrSwapchain depthSwapchain;
 
@@ -313,7 +319,7 @@ typedef struct {
 
 typedef struct {
     // session state //
-    
+
     XrInstance instance;
     XrSession session;
 
@@ -371,7 +377,7 @@ typedef struct {
 //----------------------------------------------------------------------------------
 // Global Variables Definition
 //----------------------------------------------------------------------------------
-static rlxrState rlxr = { XR_NULL_HANDLE };
+static rlxrState rlxr = {XR_NULL_HANDLE};
 
 //----------------------------------------------------------------------------------
 // Module Functions Definition - OpenXR state managment
@@ -380,7 +386,8 @@ static rlxrState rlxr = { XR_NULL_HANDLE };
 inline static bool rlxrIsSessionRunning() {
     if (!rlxr.instance) return false;
 
-    switch (rlxr.state) {
+    switch (rlxr.state)
+    {
     case XR_SESSION_STATE_READY:
     case XR_SESSION_STATE_SYNCHRONIZED:
     case XR_SESSION_STATE_VISIBLE:
@@ -392,14 +399,13 @@ inline static bool rlxrIsSessionRunning() {
     }
 }
 
-static const char* rlxrFormatResult(XrResult res) {
+static const char *rlxrFormatResult(XrResult res) {
     static char buf[XR_MAX_RESULT_STRING_SIZE];
 
-    if (rlxr.instance != XR_NULL_HANDLE) {
+    if (rlxr.instance != XR_NULL_HANDLE)
+    {
         XrResult convRes = xrResultToString(rlxr.instance, res, buf);
-
-        if (XR_SUCCEEDED(convRes))
-            return buf;
+        if (XR_SUCCEEDED(convRes)) return buf;
     }
 
     snprintf(buf, XR_MAX_RESULT_STRING_SIZE, "%d", res);
@@ -408,7 +414,7 @@ static const char* rlxrFormatResult(XrResult res) {
 
 static bool rlxrInitInstance() {
     // app info
-    
+
     XrApplicationInfo appInfo;
     strncpy(appInfo.applicationName, RLXR_APP_NAME, XR_MAX_APPLICATION_NAME_SIZE);
     appInfo.applicationVersion = 1;
@@ -419,7 +425,7 @@ static bool rlxrInitInstance() {
     // instance extensions
 
     int instanceExtCount = 1;
-    const char *instanceExts[1] = { XR_KHR_OPENGL_ENABLE_EXTENSION_NAME };
+    const char *instanceExts[1] = {XR_KHR_OPENGL_ENABLE_EXTENSION_NAME};
 
     // create instance
 
@@ -432,8 +438,10 @@ static bool rlxrInitInstance() {
     instanceInfo.enabledExtensionNames = instanceExts;
 
     XrResult res = xrCreateInstance(&instanceInfo, &rlxr.instance);
-    if (XR_FAILED(res)) {
-        switch (res) {
+    if (XR_FAILED(res))
+    {
+        switch (res)
+        {
         case XR_ERROR_RUNTIME_UNAVAILABLE:
             TRACELOG(LOG_ERROR, "XR: No active XR runtime found.");
             return false;
@@ -453,7 +461,8 @@ static bool rlxrInitInstance() {
     }
 
     res = xrGetInstanceProcAddr(rlxr.instance, "xrGetOpenGLGraphicsRequirementsKHR", (PFN_xrVoidFunction *)&rlxr.pfnGetOpenGLGraphicsRequirementsKHR);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to init OpenGL bindings (%s)", rlxrFormatResult(res));
         return false;
     }
@@ -464,14 +473,16 @@ static bool rlxrInitInstance() {
     systemInfo.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
 
     res = xrGetSystem(rlxr.instance, &systemInfo, &rlxr.system);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to get XrSystemId (%s)", rlxrFormatResult(res));
         return false;
     }
 
     rlxr.systemProps = (XrSystemProperties){XR_TYPE_SYSTEM_PROPERTIES};
     res = xrGetSystemProperties(rlxr.instance, rlxr.system, &rlxr.systemProps);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to get XrSystemProperties (%s)", rlxrFormatResult(res));
         return false;
     }
@@ -481,19 +492,22 @@ static bool rlxrInitInstance() {
     rlxr.viewConfig = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
 
     res = xrEnumerateViewConfigurationViews(rlxr.instance, rlxr.system, rlxr.viewConfig, 0, &rlxr.viewCount, NULL);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to enumerate views (%s)", rlxrFormatResult(res));
         return false;
     }
 
     rlxr.viewProps = (XrViewConfigurationView *)RL_MALLOC(rlxr.viewCount * sizeof(rlxr.viewProps[0]));
-    for (int i = 0; i < rlxr.viewCount; i++) {
+    for (int i = 0; i < rlxr.viewCount; i++)
+    {
         rlxr.viewProps[i].type = XR_TYPE_VIEW_CONFIGURATION_VIEW;
         rlxr.viewProps[i].next = 0;
     }
 
     res = xrEnumerateViewConfigurationViews(rlxr.instance, rlxr.system, rlxr.viewConfig, rlxr.viewCount, &rlxr.viewCount, rlxr.viewProps);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to enumerate views (%s)", rlxrFormatResult(res));
         return false;
     }
@@ -502,11 +516,12 @@ static bool rlxrInitInstance() {
 
     XrActionSetCreateInfo setInfo = {XR_TYPE_ACTION_SET_CREATE_INFO};
     strncpy(setInfo.actionSetName, "rlxr-primary-set", XR_MAX_ACTION_SET_NAME_SIZE);
-    strncpy(setInfo.localizedActionSetName, RLXR_APP_NAME" Primary Input", XR_MAX_LOCALIZED_ACTION_SET_NAME_SIZE);
+    strncpy(setInfo.localizedActionSetName, RLXR_APP_NAME " Primary Input", XR_MAX_LOCALIZED_ACTION_SET_NAME_SIZE);
     setInfo.priority = 0;
 
     res = xrCreateActionSet(rlxr.instance, &setInfo, &rlxr.actionSet);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to create action set (%s)", rlxrFormatResult(res));
         return false;
     }
@@ -524,16 +539,18 @@ static bool rlxrInitInstance() {
 static int64_t rlxrChooseSwapchainFormat(int64_t preferred, bool fallback) {
     unsigned int formatCount;
     int64_t *formats;
-    
+
     XrResult res = xrEnumerateSwapchainFormats(rlxr.session, 0, &formatCount, NULL);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to enumerate swapchain formats (%s)", rlxrFormatResult(res));
         return -1;
     }
 
     formats = (int64_t *)RL_MALLOC(formatCount * sizeof(formats[0]));
     res = xrEnumerateSwapchainFormats(rlxr.session, formatCount, &formatCount, formats);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to enumerate swapchain formats (%s)", rlxrFormatResult(res));
 
         RL_FREE(formats);
@@ -541,9 +558,9 @@ static int64_t rlxrChooseSwapchainFormat(int64_t preferred, bool fallback) {
     }
 
     int64_t format = fallback ? formats[0] : -1;
-    for (int i = 0; i < formatCount; i++) {
-        if (formats[i] == preferred)
-            format = preferred;
+    for (int i = 0; i < formatCount; i++)
+    {
+        if (formats[i] == preferred) format = preferred;
     }
 
     RL_FREE(formats);
@@ -584,7 +601,8 @@ static bool rlxrInitSession() {
     XrGraphicsRequirementsOpenGLKHR openglReqs = {XR_TYPE_GRAPHICS_REQUIREMENTS_OPENGL_KHR};
 
     XrResult res = rlxr.pfnGetOpenGLGraphicsRequirementsKHR(rlxr.instance, rlxr.system, &openglReqs);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to fetch OpenGL requirements (%s)", rlxrFormatResult(res));
         return false;
     }
@@ -604,8 +622,11 @@ static bool rlxrInitSession() {
     rlxrGraphicsBindingOpenGL rlglInfo;
     rlxrGraphicsContext ctx;
 
+    /* clang-format off */
+
 #ifdef XR_USE_PLATFORM_WIN32
-    if ((ctx.win32 = wglGetCurrentContext())) {
+    if ((ctx.win32 = wglGetCurrentContext()))
+    {
         rlglInfo.win32 = (XrGraphicsBindingOpenGLWin32KHR){XR_TYPE_GRAPHICS_BINDING_OPENGL_WIN32_KHR};
         rlglInfo.win32.hDC = wglGetCurrentDC();
         rlglInfo.win32.hGLRC = ctx.win32;
@@ -614,7 +635,8 @@ static bool rlxrInitSession() {
     } else
 #endif
 #ifdef XR_USE_PLATFORM_XLIB
-    if ((ctx.xlib = glXGetCurrentContext())) {
+    if ((ctx.xlib = glXGetCurrentContext()))
+    {
         rlglInfo.xlib = (XrGraphicsBindingOpenGLXlibKHR){XR_TYPE_GRAPHICS_BINDING_OPENGL_XLIB_KHR};
         rlglInfo.xlib.xDisplay = XOpenDisplay(NULL);
         rlglInfo.xlib.glxContext = ctx.xlib;
@@ -624,7 +646,8 @@ static bool rlxrInitSession() {
     } else
 #endif
 #ifdef XR_USE_PLATFORM_WAYLAND
-    if ((ctx.wayland = wl_display_connect(NULL))) {
+    if ((ctx.wayland = wl_display_connect(NULL)))
+    {
         rlglInfo.wayland = (XrGraphicsBindingOpenGLWaylandKHR){XR_TYPE_GRAPHICS_BINDING_OPENGL_WAYLAND_KHR};
         rlglInfo.wayland.display = ctx.wayland;
 
@@ -636,15 +659,18 @@ static bool rlxrInitSession() {
         return false;
     }
 
+    /* clang-format on */
+
     // create session
-    
+
     XrSessionCreateInfo sessionInfo = {XR_TYPE_SESSION_CREATE_INFO};
     sessionInfo.next = &rlglInfo;
     sessionInfo.createFlags = 0;
     sessionInfo.systemId = rlxr.system;
 
     res = xrCreateSession(rlxr.instance, &sessionInfo, &rlxr.session);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to create XrSession (%s)", rlxrFormatResult(res));
         return false;
     }
@@ -658,14 +684,16 @@ static bool rlxrInitSession() {
     refInfo.poseInReferenceSpace = (XrPosef){{0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}};
 
     res = xrCreateReferenceSpace(rlxr.session, &refInfo, &rlxr.referenceSpace);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to create reference XrSpace (%s)", rlxrFormatResult(res));
         return false;
     }
 
     refInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW;
     res = xrCreateReferenceSpace(rlxr.session, &refInfo, &rlxr.viewSpace);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to create view XrSpace (%s)", rlxrFormatResult(res));
         return false;
     }
@@ -676,7 +704,8 @@ static bool rlxrInitSession() {
     int64_t depthFormat = rlxrChooseSwapchainFormat(GL_DEPTH_COMPONENT16, false);
 
     rlxr.depthSupported = true;
-    if (depthFormat < 0) {
+    if (depthFormat < 0)
+    {
         TRACELOG(LOG_WARNING, "XR: Preferred depth format not supported, falling back to internal render buffers");
         rlxr.depthSupported = false;
     }
@@ -684,9 +713,10 @@ static bool rlxrInitSession() {
     rlxr.viewBufs = (rlxrViewBuffers *)RL_MALLOC(rlxr.viewCount * sizeof(rlxrViewBuffers));
 
     // init color swapchains
-    for (int i = 0; i < rlxr.viewCount; i++) {
+    for (int i = 0; i < rlxr.viewCount; i++)
+    {
         rlxrViewBuffers *view = &rlxr.viewBufs[i];
-        
+
         XrSwapchainCreateInfo chainInfo = {XR_TYPE_SWAPCHAIN_CREATE_INFO};
         chainInfo.usageFlags = XR_SWAPCHAIN_USAGE_SAMPLED_BIT | XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
         chainInfo.createFlags = 0;
@@ -696,10 +726,11 @@ static bool rlxrInitSession() {
         chainInfo.height = rlxr.viewProps[i].recommendedImageRectHeight;
         chainInfo.faceCount = 1;
         chainInfo.arraySize = 1;
-        chainInfo.mipCount = 1;        
+        chainInfo.mipCount = 1;
 
         res = xrCreateSwapchain(rlxr.session, &chainInfo, &view->colorSwapchain);
-        if (XR_FAILED(res)) {
+        if (XR_FAILED(res))
+        {
             TRACELOG(LOG_ERROR, "XR: Failed to create swapchain (%s)", rlxrFormatResult(res));
             return false;
         }
@@ -707,29 +738,34 @@ static bool rlxrInitSession() {
         // enumerate chain images
 
         res = xrEnumerateSwapchainImages(view->colorSwapchain, 0, &view->colorImageCount, NULL);
-        if (XR_FAILED(res)) {
+        if (XR_FAILED(res))
+        {
             TRACELOG(LOG_ERROR, "XR: Failed to enumerate swapchain images (%s)", rlxrFormatResult(res));
             return false;
         }
 
         view->colorImages = (XrSwapchainImageOpenGLKHR *)RL_MALLOC(view->colorImageCount * sizeof(view->colorImages[0]));
-        for (int i = 0; i < view->colorImageCount; i++) {
+        for (int i = 0; i < view->colorImageCount; i++)
+        {
             view->colorImages[i].type = XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_KHR;
             view->colorImages[i].next = 0;
         }
-        
+
         res = xrEnumerateSwapchainImages(view->colorSwapchain, view->colorImageCount, &view->colorImageCount, (XrSwapchainImageBaseHeader *)view->colorImages);
-        if (XR_FAILED(res)) {
+        if (XR_FAILED(res))
+        {
             TRACELOG(LOG_ERROR, "XR: Failed to enumerate swapchain images (%s)", rlxrFormatResult(res));
             return false;
         }
     }
 
     // init depth swapchains
-    if (rlxr.depthSupported) {
-        for (int i = 0; i < rlxr.viewCount; i++) {
+    if (rlxr.depthSupported)
+    {
+        for (int i = 0; i < rlxr.viewCount; i++)
+        {
             rlxrViewBuffers *view = &rlxr.viewBufs[i];
-        
+
             XrSwapchainCreateInfo chainInfo = {XR_TYPE_SWAPCHAIN_CREATE_INFO};
             chainInfo.usageFlags = XR_SWAPCHAIN_USAGE_SAMPLED_BIT | XR_SWAPCHAIN_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
             chainInfo.createFlags = 0;
@@ -742,7 +778,8 @@ static bool rlxrInitSession() {
             chainInfo.mipCount = 1;
 
             res = xrCreateSwapchain(rlxr.session, &chainInfo, &view->depthSwapchain);
-            if (XR_FAILED(res)) {
+            if (XR_FAILED(res))
+            {
                 TRACELOG(LOG_ERROR, "XR: Failed to create depth swapchain (%s)", rlxrFormatResult(res));
                 return false;
             }
@@ -750,29 +787,34 @@ static bool rlxrInitSession() {
             // enumerate chain images
 
             res = xrEnumerateSwapchainImages(view->depthSwapchain, 0, &view->depthImageCount, NULL);
-            if (XR_FAILED(res)) {
+            if (XR_FAILED(res))
+            {
                 TRACELOG(LOG_ERROR, "XR: Failed to enumerate swapchain images (%s)", rlxrFormatResult(res));
                 return false;
             }
 
             view->depthImages = (XrSwapchainImageOpenGLKHR *)RL_MALLOC(view->depthImageCount * sizeof(view->depthImages[0]));
-            for (int i = 0; i < view->depthImageCount; i++) {
+            for (int i = 0; i < view->depthImageCount; i++)
+            {
                 view->depthImages[i].type = XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_KHR;
                 view->depthImages[i].next = 0;
             }
-        
+
             res = xrEnumerateSwapchainImages(view->depthSwapchain, view->depthImageCount, &view->depthImageCount, (XrSwapchainImageBaseHeader *)view->depthImages);
-            if (XR_FAILED(res)) {
+            if (XR_FAILED(res))
+            {
                 TRACELOG(LOG_ERROR, "XR: Failed to enumerate swapchain images (%s)", rlxrFormatResult(res));
                 return false;
             }
         }
     }
 
-    for (int i = 0; i < rlxr.viewCount; i++) {
+    for (int i = 0; i < rlxr.viewCount; i++)
+    {
         rlxr.viewBufs[i].framebuffer = rlLoadFramebuffer();
 
-        if (!rlxr.depthSupported) {
+        if (!rlxr.depthSupported)
+        {
             rlxr.viewBufs[i].depthRenderBuffer = rlLoadTextureDepth(rlxr.viewProps[i].recommendedImageRectWidth, rlxr.viewProps[i].recommendedImageRectHeight, true);
             rlFramebufferAttach(rlxr.viewBufs[i].framebuffer, rlxr.viewBufs[i].depthRenderBuffer, RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_RENDERBUFFER, 0);
         }
@@ -781,13 +823,15 @@ static bool rlxrInitSession() {
     // pre-allocate view storage
 
     rlxr.views = (XrView *)RL_MALLOC(rlxr.viewCount * sizeof(XrView));
-    for (int i = 0; i < rlxr.viewCount; i++) {
+    for (int i = 0; i < rlxr.viewCount; i++)
+    {
         rlxr.views[i].type = XR_TYPE_VIEW;
         rlxr.views[i].next = NULL;
     }
-    
+
     rlxr.projectionViews = (XrCompositionLayerProjectionView *)RL_MALLOC(rlxr.viewCount * sizeof(XrCompositionLayerProjectionView));
-    for (int i = 0; i < rlxr.viewCount; i++) {
+    for (int i = 0; i < rlxr.viewCount; i++)
+    {
         rlxr.projectionViews[i].type = XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW;
         rlxr.projectionViews[i].next = NULL;
 
@@ -801,9 +845,11 @@ static bool rlxrInitSession() {
         // .pose and .fov must be updated every frame
     }
 
-    if (rlxr.depthSupported) {
+    if (rlxr.depthSupported)
+    {
         rlxr.depthInfoViews = (XrCompositionLayerDepthInfoKHR *)RL_MALLOC(rlxr.viewCount * sizeof(XrCompositionLayerDepthInfoKHR));
-        for (int i = 0; i < rlxr.viewCount; i++) {
+        for (int i = 0; i < rlxr.viewCount; i++)
+        {
             rlxr.depthInfoViews[i].type = XR_TYPE_COMPOSITION_LAYER_DEPTH_INFO_KHR;
             rlxr.depthInfoViews[i].next = NULL;
             rlxr.depthInfoViews[i].minDepth = 0.f; // TODO: sync with rlgl clip mode (?)
@@ -847,32 +893,37 @@ bool InitXr() {
 
     rlxr.frameActive = false;
     rlxr.viewActiveIndex = ~0;
-    
+
     return true;
 }
 
 void CloseXr() {
     if (!rlxr.instance) return;
 
-    for (int i = 0; i < rlxr.actionCount; i++) {
+    for (int i = 0; i < rlxr.actionCount; i++)
+    {
         for (int j = 0; j < RLXR_MAX_SPACES_PER_ACTION; j++)
-            if (rlxr.actions[i].actionSpaces[j] != XR_NULL_HANDLE)
-                xrDestroySpace(rlxr.actions[i].actionSpaces[j]);
+        {
+            if (rlxr.actions[i].actionSpaces[j] != XR_NULL_HANDLE) xrDestroySpace(rlxr.actions[i].actionSpaces[j]);
+        }
 
         xrDestroyAction(rlxr.actions[i].action);
     }
     RL_FREE(rlxr.actions);
     RL_FREE(rlxr.bindings);
 
-    for (int i = 0; i < rlxr.viewCount; i++) {
+    for (int i = 0; i < rlxr.viewCount; i++)
+    {
         RL_FREE(rlxr.viewBufs[i].colorImages);
         if (rlxr.depthSupported) RL_FREE(rlxr.viewBufs[i].depthImages);
-        
+
         rlUnloadFramebuffer(rlxr.viewBufs[i].framebuffer);
         xrDestroySwapchain(rlxr.viewBufs[i].colorSwapchain);
 
-        if (rlxr.depthSupported) xrDestroySwapchain(rlxr.viewBufs[i].depthSwapchain);
-        else rlUnloadTexture(rlxr.viewBufs[i].depthRenderBuffer);
+        if (rlxr.depthSupported)
+            xrDestroySwapchain(rlxr.viewBufs[i].depthSwapchain);
+        else
+            rlUnloadTexture(rlxr.viewBufs[i].depthRenderBuffer);
     }
 
     RL_FREE(rlxr.projectionViews);
@@ -894,14 +945,16 @@ void CloseXr() {
 static void submitSuggestedBindings() {
     assert(!rlxr.actionSetAttached);
 
-    if (rlxr.bindingCount != 0) {
+    if (rlxr.bindingCount != 0)
+    {
         XrInteractionProfileSuggestedBinding profileInfo = {XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
         profileInfo.interactionProfile = rlxr.currentSuggestProfile;
         profileInfo.countSuggestedBindings = rlxr.bindingCount;
         profileInfo.suggestedBindings = rlxr.bindings;
 
         XrResult res = xrSuggestInteractionProfileBindings(rlxr.instance, &profileInfo);
-        if (XR_FAILED(res)) {
+        if (XR_FAILED(res))
+        {
             TRACELOG(LOG_ERROR, "XR: Failed to suggest bindings, input will probably not work (%s)", rlxrFormatResult(res));
         }
     }
@@ -912,7 +965,8 @@ static void submitSuggestedBindings() {
 void UpdateXr() {
     // attach action set (first update call)
 
-    if (!rlxr.actionSetAttached) {
+    if (!rlxr.actionSetAttached)
+    {
         // suggest bindings
 
         submitSuggestedBindings();
@@ -924,9 +978,11 @@ void UpdateXr() {
         attachInfo.actionSets = &rlxr.actionSet;
 
         XrResult res = xrAttachSessionActionSets(rlxr.session, &attachInfo);
-        if (XR_FAILED(res)) {
+        if (XR_FAILED(res))
+        {
             TRACELOG(LOG_ERROR, "XR: Failed to attach action set, input will probably not work (%s)", rlxrFormatResult(res));
-        } else if (rlxr.actionCount != 0) {
+        } else if (rlxr.actionCount != 0)
+        {
             TRACELOG(LOG_INFO, "XR: %d actions attached successfully", rlxr.actionCount);
         }
 
@@ -936,71 +992,82 @@ void UpdateXr() {
     // poll events
 
     XrEventDataBuffer ev = {XR_TYPE_EVENT_DATA_BUFFER};
-    for (; xrPollEvent(rlxr.instance, &ev) == XR_SUCCESS; ev = (XrEventDataBuffer){XR_TYPE_EVENT_DATA_BUFFER}) {
-        switch (ev.type) {
-            case XR_TYPE_EVENT_DATA_EVENTS_LOST:
-                TRACELOG(LOG_WARNING, "XR: Event buffer overflow, %d events lost; UpdateXr might be getting called too little", ((XrEventDataEventsLost *)&ev)->lostEventCount);
-                break;
+    for (; xrPollEvent(rlxr.instance, &ev) == XR_SUCCESS; ev = (XrEventDataBuffer){XR_TYPE_EVENT_DATA_BUFFER})
+    {
+        switch (ev.type)
+        {
+        case XR_TYPE_EVENT_DATA_EVENTS_LOST:
+            TRACELOG(LOG_WARNING, "XR: Event buffer overflow, %d events lost; UpdateXr might be getting called too little", ((XrEventDataEventsLost *)&ev)->lostEventCount);
+            break;
 
-            case XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING:
-                TRACELOG(LOG_ERROR, "XR: Instance loss pending; rlxr disconnected.");
+        case XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING:
+            TRACELOG(LOG_ERROR, "XR: Instance loss pending; rlxr disconnected.");
+
+            rlxr.state = XR_SESSION_STATE_LOSS_PENDING;
+            return;
+
+        case XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING:
+            // TODO: ref space
+            break;
+
+        case XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED:
+        {
+            XrEventDataSessionStateChanged *state = (XrEventDataSessionStateChanged *)&ev;
+
+            if (state->state == XR_SESSION_STATE_READY)
+            {
+                // session ready, begin session with view configuration
+                XrSessionBeginInfo beginInfo = {XR_TYPE_SESSION_BEGIN_INFO};
+                beginInfo.primaryViewConfigurationType = rlxr.viewConfig;
+
+                XrResult res = xrBeginSession(rlxr.session, &beginInfo);
+                if (XR_FAILED(res))
+                {
+                    TRACELOG(LOG_ERROR, "XR: Failed to begin session (%s)", rlxrFormatResult(res));
+                }
+            }
+            if (state->state == XR_SESSION_STATE_STOPPING)
+            {
+                XrResult res = xrEndSession(rlxr.session);
+                if (XR_FAILED(res))
+                {
+                    TRACELOG(LOG_ERROR, "XR: Failed to end session (%s)", rlxrFormatResult(res));
+                }
+            }
+            if (state->state == XR_SESSION_STATE_EXITING)
+            {
+                TRACELOG(LOG_INFO, "XR: Session exiting; rlxr disconnected.");
+
+                rlxr.state = XR_SESSION_STATE_EXITING;
+                return;
+            }
+            if (state->state == XR_SESSION_STATE_LOSS_PENDING)
+            {
+                TRACELOG(LOG_ERROR, "XR: Session loss pending; rlxr disconnected.");
 
                 rlxr.state = XR_SESSION_STATE_LOSS_PENDING;
                 return;
-
-            case XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING:
-                // TODO: ref space
-                break;
-
-            case XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED: {
-                XrEventDataSessionStateChanged *state = (XrEventDataSessionStateChanged *)&ev;
-
-                if (state->state == XR_SESSION_STATE_READY) {
-                    // session ready, begin session with view configuration
-                    XrSessionBeginInfo beginInfo = {XR_TYPE_SESSION_BEGIN_INFO};
-                    beginInfo.primaryViewConfigurationType = rlxr.viewConfig;
-
-                    XrResult res = xrBeginSession(rlxr.session, &beginInfo);
-                    if (XR_FAILED(res)) {
-                        TRACELOG(LOG_ERROR, "XR: Failed to begin session (%s)", rlxrFormatResult(res));
-                    }
-                }
-                if (state->state == XR_SESSION_STATE_STOPPING) {
-                    XrResult res = xrEndSession(rlxr.session);
-                    if (XR_FAILED(res)) {
-                        TRACELOG(LOG_ERROR, "XR: Failed to end session (%s)", rlxrFormatResult(res));
-                    }
-                }
-                if (state->state == XR_SESSION_STATE_EXITING) {
-                    TRACELOG(LOG_INFO, "XR: Session exiting; rlxr disconnected.");
-
-                    rlxr.state = XR_SESSION_STATE_EXITING;
-                    return;
-                }
-                if (state->state == XR_SESSION_STATE_LOSS_PENDING) {
-                    TRACELOG(LOG_ERROR, "XR: Session loss pending; rlxr disconnected.");
-
-                    rlxr.state = XR_SESSION_STATE_LOSS_PENDING;
-                    return;
-                }
-
-                rlxr.state = state->state;
-                break;
             }
 
-            default:
-                break;
+            rlxr.state = state->state;
+            break;
+        }
+
+        default:
+            break;
         }
     }
 
-    if (rlxrIsSessionRunning()) {
+    if (rlxrIsSessionRunning())
+    {
         // sync with xr runtime
 
         rlxr.frameState.type = XR_TYPE_FRAME_STATE;
         XrFrameWaitInfo waitInfo = {XR_TYPE_FRAME_WAIT_INFO};
 
         XrResult res = xrWaitFrame(rlxr.session, &waitInfo, &rlxr.frameState);
-        if (XR_FAILED(res)) {
+        if (XR_FAILED(res))
+        {
             TRACELOG(LOG_ERROR, "XR: Failed to wait for a frame (%s)", rlxrFormatResult(res));
         }
 
@@ -1015,7 +1082,8 @@ void UpdateXr() {
         syncInfo.activeActionSets = &activeSet;
 
         res = xrSyncActions(rlxr.session, &syncInfo);
-        if (XR_FAILED(res)) {
+        if (XR_FAILED(res))
+        {
             TRACELOG(LOG_WARNING, "XR: Failed to sync actions (%s)", rlxrFormatResult(res));
         }
     }
@@ -1033,8 +1101,9 @@ bool IsXrFocused() {
 
 rlXrState GetXrState() {
     if (!rlxr.instance) return RLXR_STATE_UNKNOWN;
-    
-    switch (rlxr.state) {
+
+    switch (rlxr.state)
+    {
     case XR_SESSION_STATE_IDLE:
     case XR_SESSION_STATE_READY:
     case XR_SESSION_STATE_STOPPING:
@@ -1065,13 +1134,15 @@ static rlPose xrPoseToRlPose(XrPosef xrPose, bool position, bool orientation) {
     pose.isPositionValid = false;
     pose.isOrientationValid = false;
 
-    if (position) {
+    if (position)
+    {
         pose.position = (Vector3){xrPose.position.x, xrPose.position.y, xrPose.position.z};
         pose.position = Vector3Add(rlxr.refPosition, pose.position);
         pose.isPositionValid = true;
     }
 
-    if (orientation) {
+    if (orientation)
+    {
         pose.orientation = (Quaternion){xrPose.orientation.x, xrPose.orientation.y, xrPose.orientation.z, xrPose.orientation.w};
         pose.orientation = QuaternionMultiply(rlxr.refOrientation, pose.orientation);
         pose.isOrientationValid = true;
@@ -1084,7 +1155,8 @@ rlPose GetXrViewPose() {
     XrSpaceLocation location = {XR_TYPE_SPACE_LOCATION};
 
     XrResult res = xrLocateSpace(rlxr.viewSpace, rlxr.referenceSpace, rlxr.frameState.predictedDisplayTime, &location);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: failed to locate view space (%s)", rlxrFormatResult(res));
     }
 
@@ -1122,12 +1194,11 @@ typedef enum {
 } GraphicsAPI;
 
 inline static void
-XrMatrix4x4f_CreateProjectionFov(Matrix* result,
+XrMatrix4x4f_CreateProjectionFov(Matrix *result,
                                  GraphicsAPI graphicsApi,
                                  const XrFovf fov,
                                  const float nearZ,
-                                 const float farZ)
-{
+                                 const float farZ) {
     const float tanAngleLeft = tanf(fov.angleLeft);
     const float tanAngleRight = tanf(fov.angleRight);
 
@@ -1140,14 +1211,15 @@ XrMatrix4x4f_CreateProjectionFov(Matrix* result,
     // down (Vulkan). Set to tanAngleUp - tanAngleDown for a clip space with
     // positive Y up (OpenGL / D3D / Metal).
     const float tanAngleHeight =
-     graphicsApi == GRAPHICS_VULKAN ? (tanAngleDown - tanAngleUp) : (tanAngleUp - tanAngleDown);
+        graphicsApi == GRAPHICS_VULKAN ? (tanAngleDown - tanAngleUp) : (tanAngleUp - tanAngleDown);
 
     // Set to nearZ for a [-1,1] Z clip space (OpenGL / OpenGL ES).
     // Set to zero for a [0,1] Z clip space (Vulkan / D3D / Metal).
     const float offsetZ =
-     (graphicsApi == GRAPHICS_OPENGL || graphicsApi == GRAPHICS_OPENGL_ES) ? nearZ : 0;
+        (graphicsApi == GRAPHICS_OPENGL || graphicsApi == GRAPHICS_OPENGL_ES) ? nearZ : 0;
 
-    if (farZ <= nearZ) {
+    if (farZ <= nearZ)
+    {
         // place the far plane at infinity
         result->m0 = 2 / tanAngleWidth;
         result->m4 = 0;
@@ -1168,7 +1240,8 @@ XrMatrix4x4f_CreateProjectionFov(Matrix* result,
         result->m7 = 0;
         result->m11 = -1;
         result->m15 = 0;
-    } else {
+    } else
+    {
         // normal projection
         result->m0 = 2 / tanAngleWidth;
         result->m4 = 0;
@@ -1195,9 +1268,7 @@ XrMatrix4x4f_CreateProjectionFov(Matrix* result,
 int BeginXrMode() {
     assert(!rlxr.frameActive);
 
-    if (!rlxrIsSessionRunning()) {
-        return 0; // session not yet synchronized, skip this frame
-    }
+    if (!rlxrIsSessionRunning()) return 0; // session not yet synchronized, skip this frame
 
     // locate view poses
 
@@ -1208,26 +1279,29 @@ int BeginXrMode() {
     locateInfo.space = rlxr.referenceSpace;
 
     XrResult res = xrLocateViews(rlxr.session, &locateInfo, &viewState, rlxr.viewCount, &rlxr.viewCount, rlxr.views);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to locate views (%s)", rlxrFormatResult(res));
     }
 
     // begin frame
 
     XrFrameBeginInfo beginInfo = {XR_TYPE_FRAME_BEGIN_INFO};
-    
+
     res = xrBeginFrame(rlxr.session, &beginInfo);
-    if (XR_FAILED(res)) {
-        if (res == XR_ERROR_SESSION_LOST || res == XR_ERROR_INSTANCE_LOST) {
+    if (XR_FAILED(res))
+    {
+        if (res == XR_ERROR_SESSION_LOST || res == XR_ERROR_INSTANCE_LOST)
+        {
             // in the case that the app doesn't gracefully receive a _LOSS_PENDING event, we have to
             // make sure we _eventually_ close the XR connection, clean up and make it visible to the
             // app (using IsXrConnected)
 
             rlxr.state = XR_SESSION_STATE_LOSS_PENDING;
-            return 0;
         }
 
         TRACELOG(LOG_ERROR, "XR: Failed to begin a frame (%s)", rlxrFormatResult(res));
+        return 0;
     }
 
     rlxr.frameActive = true;
@@ -1248,7 +1322,7 @@ void EndXrMode() {
     layer.viewCount = rlxr.viewCount;
     layer.views = rlxr.projectionViews;
 
-    const XrCompositionLayerBaseHeader *submit_layers[1] = { (XrCompositionLayerBaseHeader *)&layer };
+    const XrCompositionLayerBaseHeader *submit_layers[1] = {(XrCompositionLayerBaseHeader *)&layer};
 
     XrFrameEndInfo endInfo = {XR_TYPE_FRAME_END_INFO};
     endInfo.displayTime = rlxr.frameState.predictedDisplayTime;
@@ -1257,7 +1331,8 @@ void EndXrMode() {
     endInfo.environmentBlendMode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE; // TODO: add support for env blend modes
 
     XrResult res = xrEndFrame(rlxr.session, &endInfo);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to end a frame (%s)", rlxrFormatResult(res));
     }
 
@@ -1276,13 +1351,16 @@ void BeginView(unsigned int index) {
     uint32_t colorAcquiredIndex, depthAcquiredIndex;
 
     XrResult res = xrAcquireSwapchainImage(view->colorSwapchain, &acqInfo, &colorAcquiredIndex);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to acquire an image from swapchain (%s)", rlxrFormatResult(res));
     }
 
-    if (rlxr.depthSupported) {
+    if (rlxr.depthSupported)
+    {
         res = xrAcquireSwapchainImage(view->depthSwapchain, &acqInfo, &depthAcquiredIndex);
-        if (XR_FAILED(res)) {
+        if (XR_FAILED(res))
+        {
             TRACELOG(LOG_ERROR, "XR: Failed to acquire an image from swapchain (%s)", rlxrFormatResult(res));
         }
     }
@@ -1291,13 +1369,16 @@ void BeginView(unsigned int index) {
     waitInfo.timeout = 1000;
 
     res = xrWaitSwapchainImage(view->colorSwapchain, &waitInfo);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to wait for an image from swapchain (%s)", rlxrFormatResult(res));
     }
 
-    if (rlxr.depthSupported) {
+    if (rlxr.depthSupported)
+    {
         res = xrWaitSwapchainImage(view->depthSwapchain, &waitInfo);
-        if (XR_FAILED(res)) {
+        if (XR_FAILED(res))
+        {
             TRACELOG(LOG_ERROR, "XR: Failed to wait for an image from swapchain (%s)", rlxrFormatResult(res));
         }
     }
@@ -1309,7 +1390,8 @@ void BeginView(unsigned int index) {
     rlxr.projectionViews[index].pose = rlxr.views[index].pose;
     rlxr.projectionViews[index].fov = rlxr.views[index].fov;
 
-    if (rlxr.depthSupported) {
+    if (rlxr.depthSupported)
+    {
         rlxr.depthInfoViews[index].nearZ = rlGetCullDistanceNear();
         rlxr.depthInfoViews[index].farZ = rlGetCullDistanceFar();
     }
@@ -1321,7 +1403,8 @@ void BeginView(unsigned int index) {
     rlScissor(0, 0, w, h);
 
     rlFramebufferAttach(view->framebuffer, view->colorImages[colorAcquiredIndex].image, RL_ATTACHMENT_COLOR_CHANNEL0, RL_ATTACHMENT_TEXTURE2D, 0);
-    if (rlxr.depthSupported) {
+    if (rlxr.depthSupported)
+    {
         // attach XrSwapchain depth if supprted, if not a render buffer is already attached from swapchain setup
         rlFramebufferAttach(view->framebuffer, view->depthImages[depthAcquiredIndex].image, RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_TEXTURE2D, 0);
     }
@@ -1329,11 +1412,11 @@ void BeginView(unsigned int index) {
     rlEnableFramebuffer(view->framebuffer);
     rlSetFramebufferWidth(w);
     rlSetFramebufferHeight(h);
-   
+
     rlEnableDepthTest();
 
     // setup view camera
-    
+
     Matrix xr_proj;
     XrMatrix4x4f_CreateProjectionFov(&xr_proj, GRAPHICS_OPENGL, rlxr.views[index].fov, rlGetCullDistanceNear(), rlGetCullDistanceFar());
     rlSetMatrixProjection(xr_proj);
@@ -1344,7 +1427,7 @@ void BeginView(unsigned int index) {
     Matrix xr_view = MatrixMultiply(QuaternionToMatrix(quat), MatrixTranslate(pos.x, pos.y, pos.z));
     xr_view = MatrixInvert(xr_view);
     rlSetMatrixModelview(xr_view);
-    
+
     rlxr.viewActiveIndex = index;
 }
 
@@ -1356,15 +1439,18 @@ void EndView() {
     // release swapchains
 
     XrSwapchainImageReleaseInfo relInfo = {XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
-    
+
     XrResult res = xrReleaseSwapchainImage(rlxr.viewBufs[rlxr.viewActiveIndex].colorSwapchain, &relInfo);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to release a swapchain image (%s)", rlxrFormatResult(res));
     }
 
-    if (rlxr.depthSupported) {
+    if (rlxr.depthSupported)
+    {
         res = xrReleaseSwapchainImage(rlxr.viewBufs[rlxr.viewActiveIndex].depthSwapchain, &relInfo);
-        if (XR_FAILED(res)) {
+        if (XR_FAILED(res))
+        {
             TRACELOG(LOG_ERROR, "XR: Failed to release a swapchain image (%s)", rlxrFormatResult(res));
         }
     }
@@ -1416,7 +1502,8 @@ unsigned int rlLoadAction(const char *name, rlActionType type, rlActionDevices d
 
 #pragma GCC diagnostic pop
 
-    switch (type) {
+    switch (type)
+    {
     case RLXR_TYPE_BOOLEAN:
         actionInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
         break;
@@ -1438,7 +1525,8 @@ unsigned int rlLoadAction(const char *name, rlActionType type, rlActionDevices d
         break;
     }
 
-    switch (devices) {
+    switch (devices)
+    {
     case RLXR_HAND_LEFT:
         actionInfo.countSubactionPaths = 1;
         actionInfo.subactionPaths = &rlxr.userPaths[0];
@@ -1461,21 +1549,24 @@ unsigned int rlLoadAction(const char *name, rlActionType type, rlActionDevices d
 
     XrAction xrAction;
     XrResult res = xrCreateAction(rlxr.actionSet, &actionInfo, &xrAction);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to create action %s (%s)", name, rlxrFormatResult(res));
         return RLXR_NULL_ACTION;
     }
 
     // create action space (if required)
 
-    XrSpace xrSpaces[RLXR_MAX_SPACES_PER_ACTION] = { XR_NULL_HANDLE, XR_NULL_HANDLE };
+    XrSpace xrSpaces[RLXR_MAX_SPACES_PER_ACTION] = {XR_NULL_HANDLE, XR_NULL_HANDLE};
 
-    if (type == RLXR_TYPE_POSE) {
+    if (type == RLXR_TYPE_POSE)
+    {
         XrActionSpaceCreateInfo spaceInfo = {XR_TYPE_ACTION_SPACE_CREATE_INFO};
         spaceInfo.action = xrAction;
         spaceInfo.poseInActionSpace = (XrPosef){{0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}};
 
-        switch (devices) {
+        switch (devices)
+        {
         case RLXR_HAND_LEFT:
             spaceInfo.subactionPath = rlxr.userPaths[0];
             res = xrCreateActionSpace(rlxr.session, &spaceInfo, &xrSpaces[0]);
@@ -1487,7 +1578,8 @@ unsigned int rlLoadAction(const char *name, rlActionType type, rlActionDevices d
             break;
 
         case RLXR_HAND_BOTH:
-            for (int i = 0; i < 2; i++) {
+            for (int i = 0; i < 2; i++)
+            {
                 spaceInfo.subactionPath = rlxr.userPaths[i];
                 res = xrCreateActionSpace(rlxr.session, &spaceInfo, &xrSpaces[i]);
 
@@ -1496,7 +1588,8 @@ unsigned int rlLoadAction(const char *name, rlActionType type, rlActionDevices d
             break;
         }
 
-        if (XR_FAILED(res)) {
+        if (XR_FAILED(res))
+        {
             TRACELOG(LOG_ERROR, "XR: Failed to create action spaces for action %s (%s)", name, rlxrFormatResult(res));
             return RLXR_NULL_ACTION;
         }
@@ -1523,7 +1616,8 @@ static void appendBinding(rlxrAction *action, const char *path) {
     XrPath xrPath;
     XrResult res = xrStringToPath(rlxr.instance, path, &xrPath);
 
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to suggest bidning, path error (%s)", rlxrFormatResult(res));
         return;
     }
@@ -1568,7 +1662,8 @@ void rlSuggestBindingPro(unsigned int action, rlActionDevices devices, const cha
     rlxrAction *ac = &rlxr.actions[action];
     static char pathBuf[RLXR_MAX_PATH_LENGTH];
 
-    if (devices == RLXR_HAND_BOTH) {
+    if (devices == RLXR_HAND_BOTH)
+    {
         strncpy(pathBuf, "/user/hand/left", RLXR_MAX_PATH_LENGTH);
         strncat(pathBuf, component, RLXR_MAX_PATH_LENGTH - strlen(pathBuf));
         appendBinding(ac, pathBuf);
@@ -1576,7 +1671,8 @@ void rlSuggestBindingPro(unsigned int action, rlActionDevices devices, const cha
         strncpy(pathBuf, "/user/hand/right", RLXR_MAX_PATH_LENGTH);
         strncat(pathBuf, component, RLXR_MAX_PATH_LENGTH - strlen(pathBuf));
         appendBinding(ac, pathBuf);
-    } else {
+    } else
+    {
         const char *userPath = devices == RLXR_HAND_LEFT ? "/user/hand/left" : "/user/hand/right";
         strncpy(pathBuf, userPath, RLXR_MAX_PATH_LENGTH);
         strncat(pathBuf, component, RLXR_MAX_PATH_LENGTH - strlen(pathBuf));
@@ -1587,14 +1683,15 @@ void rlSuggestBindingPro(unsigned int action, rlActionDevices devices, const cha
 
 rlBoolState rlGetBoolState(unsigned int action, rlActionDevices device) {
     assert(rlxr.actionSetAttached);
-    if (action == RLXR_NULL_ACTION) return (rlBoolState){ 0, 0, 0 };
+    if (action == RLXR_NULL_ACTION) return (rlBoolState){0, 0, 0};
 
     rlxrAction *ac = &rlxr.actions[action];
 
     XrActionStateGetInfo getInfo = {XR_TYPE_ACTION_STATE_GET_INFO};
     getInfo.action = ac->action;
 
-    switch (device) {
+    switch (device)
+    {
     case RLXR_HAND_LEFT:
         getInfo.subactionPath = rlxr.userPaths[0];
         break;
@@ -1605,17 +1702,18 @@ rlBoolState rlGetBoolState(unsigned int action, rlActionDevices device) {
 
     default:
         TRACELOG(LOG_WARNING, "XR: Unsupported device in getBool (action: %d)", action);
-        return (rlBoolState){ 0, 0, 0 };
+        return (rlBoolState){0, 0, 0};
     }
 
     XrActionStateBoolean state = {XR_TYPE_ACTION_STATE_BOOLEAN};
     XrResult res = xrGetActionStateBoolean(rlxr.session, &getInfo, &state);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to get bool action (action: %d; result: %s)", action, rlxrFormatResult(res));
-        return (rlBoolState){ 0, 0, 0 };
+        return (rlBoolState){0, 0, 0};
     }
 
-    return (rlBoolState){ (bool)state.currentState, (bool)state.isActive, (bool)state.changedSinceLastSync };
+    return (rlBoolState){(bool)state.currentState, (bool)state.isActive, (bool)state.changedSinceLastSync};
 }
 
 bool rlGetBool(unsigned int action, rlActionDevices device) {
@@ -1625,14 +1723,15 @@ bool rlGetBool(unsigned int action, rlActionDevices device) {
 
 rlFloatState rlGetFloatState(unsigned int action, rlActionDevices device) {
     assert(rlxr.actionSetAttached);
-    if (action == RLXR_NULL_ACTION) return (rlFloatState){ 0.f, 0, 0 };
+    if (action == RLXR_NULL_ACTION) return (rlFloatState){0.f, 0, 0};
 
     rlxrAction *ac = &rlxr.actions[action];
 
     XrActionStateGetInfo getInfo = {XR_TYPE_ACTION_STATE_GET_INFO};
     getInfo.action = ac->action;
 
-    switch (device) {
+    switch (device)
+    {
     case RLXR_HAND_LEFT:
         getInfo.subactionPath = rlxr.userPaths[0];
         break;
@@ -1643,17 +1742,18 @@ rlFloatState rlGetFloatState(unsigned int action, rlActionDevices device) {
 
     default:
         TRACELOG(LOG_WARNING, "XR: Unsupported device in getFloat (action: %d)", action);
-        return (rlFloatState){ 0.f, 0, 0 };
+        return (rlFloatState){0.f, 0, 0};
     }
 
     XrActionStateFloat state = {XR_TYPE_ACTION_STATE_FLOAT};
     XrResult res = xrGetActionStateFloat(rlxr.session, &getInfo, &state);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to get float action (action: %d; result: %s)", action, rlxrFormatResult(res));
-        return (rlFloatState){ 0.f, 0, 0 };
+        return (rlFloatState){0.f, 0, 0};
     }
 
-    return (rlFloatState){ state.currentState, (bool)state.isActive, (bool)state.changedSinceLastSync };
+    return (rlFloatState){state.currentState, (bool)state.isActive, (bool)state.changedSinceLastSync};
 }
 
 float rlGetFloat(unsigned int action, rlActionDevices device) {
@@ -1663,14 +1763,15 @@ float rlGetFloat(unsigned int action, rlActionDevices device) {
 
 rlVector2State rlGetVector2State(unsigned int action, rlActionDevices device) {
     assert(rlxr.actionSetAttached);
-    if (action == RLXR_NULL_ACTION) return (rlVector2State){ { 0.f, 0.f }, 0, 0 };
+    if (action == RLXR_NULL_ACTION) return (rlVector2State){{0.f, 0.f}, 0, 0};
 
     rlxrAction *ac = &rlxr.actions[action];
 
     XrActionStateGetInfo getInfo = {XR_TYPE_ACTION_STATE_GET_INFO};
     getInfo.action = ac->action;
 
-    switch (device) {
+    switch (device)
+    {
     case RLXR_HAND_LEFT:
         getInfo.subactionPath = rlxr.userPaths[0];
         break;
@@ -1681,34 +1782,36 @@ rlVector2State rlGetVector2State(unsigned int action, rlActionDevices device) {
 
     default:
         TRACELOG(LOG_WARNING, "XR: Unsupported device in getVector2 (action: %d)", action);
-        return (rlVector2State){ { 0.f, 0.f }, 0, 0 };
+        return (rlVector2State){{0.f, 0.f}, 0, 0};
     }
 
     XrActionStateVector2f state = {XR_TYPE_ACTION_STATE_VECTOR2F};
     XrResult res = xrGetActionStateVector2f(rlxr.session, &getInfo, &state);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to get vector2 action (action: %d; result: %s)", action, rlxrFormatResult(res));
-        return (rlVector2State){ { 0.f, 0.f }, 0, 0 };
+        return (rlVector2State){{0.f, 0.f}, 0, 0};
     }
 
-    return (rlVector2State){ { state.currentState.x, state.currentState.y }, (bool)state.isActive, (bool)state.changedSinceLastSync };
+    return (rlVector2State){{state.currentState.x, state.currentState.y}, (bool)state.isActive, (bool)state.changedSinceLastSync};
 }
 
 Vector2 rlGetVector2(unsigned int action, rlActionDevices device) {
     rlVector2State state = rlGetVector2State(action, device);
-    return state.active ? state.value : (Vector2){ 0.f, 0.f };
+    return state.active ? state.value : (Vector2){0.f, 0.f};
 }
 
 rlPoseState rlGetPoseState(unsigned int action, rlActionDevices device) {
     assert(rlxr.actionSetAttached);
-    if (action == RLXR_NULL_ACTION) return (rlPoseState){ (rlPose){ {}, {}, 0, 0 }, 0 };
+    if (action == RLXR_NULL_ACTION) return (rlPoseState){(rlPose){{}, {}, 0, 0}, 0};
 
     rlxrAction *ac = &rlxr.actions[action];
 
     XrActionStateGetInfo getInfo = {XR_TYPE_ACTION_STATE_GET_INFO};
     getInfo.action = ac->action;
 
-    switch (device) {
+    switch (device)
+    {
     case RLXR_HAND_LEFT:
         getInfo.subactionPath = rlxr.userPaths[0];
         break;
@@ -1719,36 +1822,39 @@ rlPoseState rlGetPoseState(unsigned int action, rlActionDevices device) {
 
     default:
         TRACELOG(LOG_WARNING, "XR: Unsupported device in getPose (action: %d)", action);
-        return (rlPoseState){ (rlPose){ {}, {}, 0, 0 }, 0 };
+        return (rlPoseState){(rlPose){{}, {}, 0, 0}, 0};
     }
 
     XrActionStatePose state = {XR_TYPE_ACTION_STATE_POSE};
     XrResult res = xrGetActionStatePose(rlxr.session, &getInfo, &state);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to get pose action (action: %d; result: %s)", action, rlxrFormatResult(res));
-        return (rlPoseState){ (rlPose){ {}, {}, 0, 0 }, 0 };
+        return (rlPoseState){(rlPose){{}, {}, 0, 0}, 0};
     }
 
-    if (!state.isActive) {
+    if (!state.isActive)
+    {
         // return null pose if device not active
-        return (rlPoseState){ (rlPose){ {}, {}, 0, 0 }, false };
+        return (rlPoseState){(rlPose){{}, {}, 0, 0}, false};
     }
 
     // locate pose space
 
     XrSpaceLocation location = {XR_TYPE_SPACE_LOCATION};
     res = xrLocateSpace(device == RLXR_HAND_LEFT ? ac->actionSpaces[0] : ac->actionSpaces[1], rlxr.referenceSpace, rlxr.frameState.predictedDisplayTime, &location);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to locate pose space (action: %d; result: %s)", action, rlxrFormatResult(res));
-        return (rlPoseState){ (rlPose){ {}, {}, 0, 0 }, true };
+        return (rlPoseState){(rlPose){{}, {}, 0, 0}, true};
     }
 
-    return (rlPoseState){ xrPoseToRlPose(location.pose, location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT, location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT), (bool)state.isActive };
+    return (rlPoseState){xrPoseToRlPose(location.pose, location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT, location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT), (bool)state.isActive};
 }
 
 rlPose rlGetPose(unsigned int action, rlActionDevices device) {
     rlPoseState state = rlGetPoseState(action, device);
-    return state.active ? state.value : (rlPose){ {}, {}, 0, 0 };
+    return state.active ? state.value : (rlPose){{}, {}, 0, 0};
 }
 
 void rlApplyHaptic(unsigned int action, rlActionDevices device, long duration, float amplitude) {
@@ -1760,7 +1866,8 @@ void rlApplyHaptic(unsigned int action, rlActionDevices device, long duration, f
     XrHapticActionInfo hapticInfo = {XR_TYPE_HAPTIC_ACTION_INFO};
     hapticInfo.action = ac->action;
 
-    switch (device) {
+    switch (device)
+    {
     case RLXR_HAND_LEFT:
         hapticInfo.subactionPath = rlxr.userPaths[0];
         break;
@@ -1780,9 +1887,14 @@ void rlApplyHaptic(unsigned int action, rlActionDevices device, long duration, f
     vibration.frequency = XR_FREQUENCY_UNSPECIFIED;
 
     XrResult res = xrApplyHapticFeedback(rlxr.session, &hapticInfo, (XrHapticBaseHeader *)&vibration);
-    if (XR_FAILED(res)) {
+    if (XR_FAILED(res))
+    {
         TRACELOG(LOG_ERROR, "XR: Failed to apply haptic action (action: %d; result: %s)", action, rlxrFormatResult(res));
     }
 }
 
+#if defined(__cplusplus)
+}
 #endif
+
+#endif // RLXR_IMPLEMENTATION
