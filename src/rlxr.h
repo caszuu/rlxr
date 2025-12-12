@@ -223,10 +223,6 @@ RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long durat
 
 #if defined(RLXR_IMPLEMENTATION)
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 #define XR_USE_GRAPHICS_API_OPENGL
 
 // Select xr platform and include headers for window handles (required for XrGraphicsBinding...)
@@ -289,6 +285,10 @@ extern "C" {
 #include <string.h>
 
 #include <math.h>
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
 //----------------------------------------------------------------------------------
 // Types and Structures Definition
@@ -371,7 +371,14 @@ typedef struct {
 
     // extended functions //
 
-    PFN_xrGetOpenGLGraphicsRequirementsKHR pfnGetOpenGLGraphicsRequirementsKHR;
+    struct {
+        PFN_xrGetOpenGLGraphicsRequirementsKHR GetOpenGLGraphicsRequirementsKHR;
+    } pfn;
+
+    struct {
+        bool localFloor;
+        bool glEnable;
+    } ext;
 } rlxrState;
 
 //----------------------------------------------------------------------------------
@@ -380,7 +387,7 @@ typedef struct {
 static rlxrState rlxr = {XR_NULL_HANDLE};
 
 //----------------------------------------------------------------------------------
-// Module Functions Definition - OpenXR state managment
+// Module Functions Definition - helper functions
 //----------------------------------------------------------------------------------
 
 inline static bool rlxrIsSessionRunning() {
@@ -392,6 +399,26 @@ inline static bool rlxrIsSessionRunning() {
     case XR_SESSION_STATE_SYNCHRONIZED:
     case XR_SESSION_STATE_VISIBLE:
     case XR_SESSION_STATE_FOCUSED:
+        return true;
+
+    default:
+        return false;
+    }
+}
+
+static bool rlxrFormatInitResult(XrResult res, XrInstanceCreateInfo *info) {
+    switch (res)
+    {
+    case XR_ERROR_RUNTIME_UNAVAILABLE:
+        TRACELOG(LOG_ERROR, "XR: No active XR runtime found.");
+        return true;
+
+    case XR_ERROR_API_VERSION_UNSUPPORTED:
+        TRACELOG(LOG_ERROR, "XR: API version %d.%d.%d not supported by runtime.", XR_VERSION_MAJOR(info->applicationInfo.apiVersion), XR_VERSION_MINOR(info->applicationInfo.apiVersion), XR_VERSION_PATCH(info->applicationInfo.apiVersion));
+        return true;
+
+    case XR_ERROR_EXTENSION_NOT_PRESENT:
+        TRACELOG(LOG_ERROR, "XR: Requested API extensions not supported by runtime.");
         return true;
 
     default:
@@ -412,6 +439,88 @@ static const char *rlxrFormatResult(XrResult res) {
     return buf;
 }
 
+//----------------------------------------------------------------------------------
+// Module Functions Definition - OpenXR state managment
+//----------------------------------------------------------------------------------
+
+static inline bool rlxrIsExtAvailable(const char *name, XrExtensionProperties *exts, uint32_t extCount) {
+    for (int i = 0; i < extCount; i++)
+    {
+        if (strcmp(name, exts[i].extensionName) == 0) return true;
+    }
+
+    return false;
+}
+
+static bool rlxrEnumerateExtensions(XrInstanceCreateInfo *info) {
+    // fetch all available extensions
+
+    XrExtensionProperties *available;
+    uint32_t availableCount;
+
+    XrResult res = xrEnumerateInstanceExtensionProperties(NULL, 0, &availableCount, NULL);
+    if (XR_FAILED(res))
+    {
+        if (!rlxrFormatInitResult(res, info)) TRACELOG(LOG_ERROR, "XR: Failed to get avaiable extensions from runtime (%d)", res);
+        return false;
+    }
+
+    available = (XrExtensionProperties *)RL_MALLOC(availableCount * sizeof(XrExtensionProperties));
+    for (int i = 0; i < availableCount; i++)
+    {
+        available[i].type = XR_TYPE_EXTENSION_PROPERTIES;
+        available[i].next = NULL;
+    }
+
+    res = xrEnumerateInstanceExtensionProperties(NULL, availableCount, &availableCount, available);
+    if (XR_FAILED(res))
+    {
+        RL_FREE(available);
+
+        if (!rlxrFormatInitResult(res, info)) TRACELOG(LOG_ERROR, "XR: Failed to get avaiable extensions from runtime (%d)", res);
+        return false;
+    }
+
+    // select wanted extensions from the available exts
+
+    static const char *enabled[2];
+    uint32_t enabledCount = 0;
+
+    // == feature exts ==
+
+    if (rlxrIsExtAvailable(XR_EXT_LOCAL_FLOOR_EXTENSION_NAME, available, availableCount))
+    {
+        enabled[enabledCount++] = XR_EXT_LOCAL_FLOOR_EXTENSION_NAME;
+        rlxr.ext.localFloor = true;
+    }
+
+    // == platform exts ==
+
+    if (rlxrIsExtAvailable(XR_KHR_OPENGL_ENABLE_EXTENSION_NAME, available, availableCount))
+    {
+        enabled[enabledCount++] = XR_KHR_OPENGL_ENABLE_EXTENSION_NAME;
+        rlxr.ext.glEnable = true;
+    } else
+    {
+        RL_FREE(available);
+
+        TRACELOG(LOG_ERROR, "XR: Runtime doesn't support OpenGL, cannot init XR.");
+        return false;
+    }
+
+    // add exts to info
+
+    info->enabledExtensionNames = enabled;
+    info->enabledExtensionCount = enabledCount;
+
+    RL_FREE(available);
+    return true;
+}
+
+static bool rlxrAddPlatformInfo(XrInstanceCreateInfo *info) {
+    return true;
+}
+
 static bool rlxrInitInstance() {
     // app info
 
@@ -422,11 +531,6 @@ static bool rlxrInitInstance() {
     appInfo.engineVersion = 1;
     appInfo.apiVersion = XR_API_VERSION_1_0; // TODO: version switching
 
-    // instance extensions
-
-    int instanceExtCount = 1;
-    const char *instanceExts[1] = {XR_KHR_OPENGL_ENABLE_EXTENSION_NAME};
-
     // create instance
 
     XrInstanceCreateInfo instanceInfo = {XR_TYPE_INSTANCE_CREATE_INFO, NULL};
@@ -434,33 +538,20 @@ static bool rlxrInitInstance() {
     instanceInfo.applicationInfo = appInfo;
     instanceInfo.enabledApiLayerCount = 0;
     instanceInfo.enabledApiLayerNames = NULL;
-    instanceInfo.enabledExtensionCount = instanceExtCount;
-    instanceInfo.enabledExtensionNames = instanceExts;
+
+    if (!rlxrEnumerateExtensions(&instanceInfo)) return false;
+    if (!rlxrAddPlatformInfo(&instanceInfo)) return false;
 
     XrResult res = xrCreateInstance(&instanceInfo, &rlxr.instance);
     if (XR_FAILED(res))
     {
-        switch (res)
-        {
-        case XR_ERROR_RUNTIME_UNAVAILABLE:
-            TRACELOG(LOG_ERROR, "XR: No active XR runtime found.");
-            return false;
-
-        case XR_ERROR_API_VERSION_UNSUPPORTED:
-            TRACELOG(LOG_ERROR, "XR: API version %d.%d.%d not supported by runtime.", XR_VERSION_MAJOR(appInfo.apiVersion), XR_VERSION_MINOR(appInfo.apiVersion), XR_VERSION_PATCH(appInfo.apiVersion));
-            return false;
-
-        case XR_ERROR_EXTENSION_NOT_PRESENT:
-            TRACELOG(LOG_ERROR, "XR: Requested API extensions not supported by runtime.");
-            return false;
-
-        default:
-            TRACELOG(LOG_ERROR, "XR: Failed to init XrInstance (%d)", res);
-            return false;
-        }
+        if (!rlxrFormatInitResult(res, &instanceInfo)) TRACELOG(LOG_ERROR, "XR: Failed to init XrInstance (%d)", res);
+        return false;
     }
 
-    res = xrGetInstanceProcAddr(rlxr.instance, "xrGetOpenGLGraphicsRequirementsKHR", (PFN_xrVoidFunction *)&rlxr.pfnGetOpenGLGraphicsRequirementsKHR);
+    // get graphics binding pfns
+
+    res = xrGetInstanceProcAddr(rlxr.instance, "xrGetOpenGLGraphicsRequirementsKHR", (PFN_xrVoidFunction *)&rlxr.pfn.GetOpenGLGraphicsRequirementsKHR);
     if (XR_FAILED(res))
     {
         TRACELOG(LOG_ERROR, "XR: Failed to init OpenGL bindings (%s)", rlxrFormatResult(res));
@@ -600,7 +691,7 @@ static bool rlxrInitSession() {
 
     XrGraphicsRequirementsOpenGLKHR openglReqs = {XR_TYPE_GRAPHICS_REQUIREMENTS_OPENGL_KHR};
 
-    XrResult res = rlxr.pfnGetOpenGLGraphicsRequirementsKHR(rlxr.instance, rlxr.system, &openglReqs);
+    XrResult res = rlxr.pfn.GetOpenGLGraphicsRequirementsKHR(rlxr.instance, rlxr.system, &openglReqs);
     if (XR_FAILED(res))
     {
         TRACELOG(LOG_ERROR, "XR: Failed to fetch OpenGL requirements (%s)", rlxrFormatResult(res));
