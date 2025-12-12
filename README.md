@@ -3,7 +3,7 @@
 
 `rlxr` features a raylib-like subset of the OpenXR API that supports device-independent rendering and interaction with the binding based OpenXR input system.
 
-Currently only Windows and Linux (`Xlib` only) platforms are supported. While OpenGL 3.3 might work, it's recommended to build your project against OpenGL 4.3 as some OpenXR runtimes might require it.
+Currently only Windows, Linux (`Xlib` only) and Android (soon) platforms are supported. While OpenGL 3.3 might work, it's recommended to build your project against OpenGL 4.3 as some OpenXR runtimes might require it.
 
 Feature support:
 - [x] XR Fullscreen Session
@@ -48,10 +48,13 @@ RLAPI bool IsXrFocused();     // returns true if the XR device is awake and prov
 RLAPI rlXrState GetXrState(); // returns the current XR session state
 
 // Spaces and Poses
-RLAPI rlPose GetXrViewPose();          // returns the pose of the users view (usually the centroid between XR views used in BeginView)
-RLAPI void SetXrPosition(Vector3 pos); // sets the offset of the reference frame, this offsets the entire play space (including the users cameras / views) by [pos] allowing you to move the player throughout a virtual space
-RLAPI void SetXrOrientation(Quaternion quat);
-RLAPI rlPose GetXrPose();              // fetches the current reference frame offsets
+RLAPI rlPose GetXrViewPose();                 // returns the pose of the users view (usually the centroid between XR views used in BeginView)
+RLAPI void SetXrPosition(Vector3 pos);        // sets the offset of the reference space, this offsets the entire play space (including the users cameras / views) by [pos] allowing you to move the player though-out the virtual space
+RLAPI void SetXrOrientation(Quaternion quat); // sets the offset rotation of the reference space
+RLAPI rlPose GetXrPose();                     // fetches the current reference frame offsets
+
+RLAPI bool SetXrReference(rlReferenceType type); // requests a different reference space (tracking) type, returns true if supported and sucessful, false otherwise
+RLAPI rlReferenceType GetXrReference();          // gets the currently active reference space type, by default LOCAL_FLOOR is choosen on init, falling back to LOCAL if LOCAL_FLOOR is not supported
 ```
 
 Rendering API:
