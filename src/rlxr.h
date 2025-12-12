@@ -87,6 +87,11 @@
 //----------------------------------------------------------------------------------
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #if (defined(__STDC__) && __STDC_VERSION__ >= 199901L) || (defined(_MSC_VER) && _MSC_VER >= 1800)
     #include <stdbool.h>
 #elif !defined(__cplusplus) && !defined(bool) && !defined(RL_BOOL_TYPE)
@@ -135,6 +140,12 @@ typedef enum {
     RLXR_COMPONENT_MAX_ENUM,
 } rlActionComponent;
 
+typedef enum {
+    RLXR_REFERENCE_LOCAL = 0,
+    RLXR_REFERENCE_LOCAL_FLOOR,
+    RLXR_REFERENCE_STAGE,
+} rlReferenceType;
+
 typedef struct {
     bool value;
     bool active;
@@ -162,10 +173,6 @@ typedef struct {
 // Module Functions Declaration
 //----------------------------------------------------------------------------------
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 RLAPI bool InitXr(); // returns true if successful, *must* be called after InitWindow or rlglInit
 RLAPI void CloseXr();
 
@@ -176,10 +183,13 @@ RLAPI bool IsXrFocused();     // returns true if the XR device is awake and prov
 RLAPI rlXrState GetXrState(); // returns the current XR session state
 
 // Spaces and Poses
-RLAPI rlPose GetXrViewPose();          // returns the pose of the users view (usually the centroid between XR views used in BeginView)
-RLAPI void SetXrPosition(Vector3 pos); // sets the offset of the reference frame, this offsets the entire play space (including the users cameras / views) by [pos] allowing you to move the player though-out the virtual space
-RLAPI void SetXrOrientation(Quaternion quat);
-RLAPI rlPose GetXrPose(); // fetches the current reference frame offsets
+RLAPI rlPose GetXrViewPose();                 // returns the pose of the users view (usually the centroid between XR views used in BeginView)
+RLAPI void SetXrPosition(Vector3 pos);        // sets the offset of the reference space, this offsets the entire play space (including the users cameras / views) by [pos] allowing you to move the player though-out the virtual space
+RLAPI void SetXrOrientation(Quaternion quat); // sets the offset rotation of the reference space
+RLAPI rlPose GetXrPose();                     // fetches the current reference frame offsets
+
+RLAPI bool SetXrReference(rlReferenceType type); // requests a different reference space (tracking) type, returns true if supported and sucessful, false otherwise
+RLAPI rlReferenceType GetXrReference();          // gets the currently active reference space type, by default LOCAL_FLOOR is choosen on init, falling back to LOCAL if LOCAL_FLOOR is not supported
 
 // View Rendering
 RLAPI int BeginXrMode();                  // returns the number of views that are requested by the xr runtime (returns 0 if rendering is not required by the runtime, eg. app is not visible to user)
@@ -342,6 +352,7 @@ typedef struct {
     // spaces //
 
     XrSpace referenceSpace;
+    rlReferenceType referenceType;
 
     Vector3 refPosition;
     Quaternion refOrientation;
@@ -486,7 +497,7 @@ static bool rlxrEnumerateExtensions(XrInstanceCreateInfo *info) {
     static const char *enabled[2];
     uint32_t enabledCount = 0;
 
-    // == feature exts ==
+    // feature exts //
 
     if (rlxrIsExtAvailable(XR_EXT_LOCAL_FLOOR_EXTENSION_NAME, available, availableCount))
     {
@@ -494,7 +505,7 @@ static bool rlxrEnumerateExtensions(XrInstanceCreateInfo *info) {
         rlxr.ext.localFloor = true;
     }
 
-    // == platform exts ==
+    // platform exts //
 
     if (rlxrIsExtAvailable(XR_KHR_OPENGL_ENABLE_EXTENSION_NAME, available, availableCount))
     {
@@ -771,8 +782,10 @@ static bool rlxrInitSession() {
     // init reference spaces
 
     XrReferenceSpaceCreateInfo refInfo = {XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
-    refInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL; // TODO: reference space type api
+    refInfo.referenceSpaceType = rlxr.ext.localFloor ? XR_REFERENCE_SPACE_TYPE_LOCAL_FLOOR_EXT : XR_REFERENCE_SPACE_TYPE_LOCAL;
     refInfo.poseInReferenceSpace = (XrPosef){{0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}};
+
+    rlxr.referenceType = rlxr.ext.localFloor ? RLXR_REFERENCE_LOCAL_FLOOR : RLXR_REFERENCE_LOCAL;
 
     res = xrCreateReferenceSpace(rlxr.session, &refInfo, &rlxr.referenceSpace);
     if (XR_FAILED(res))
@@ -1264,6 +1277,48 @@ void SetXrOrientation(Quaternion quat) {
 
 rlPose GetXrPose() {
     return (rlPose){rlxr.refPosition, rlxr.refOrientation};
+}
+
+bool SetXrReference(rlReferenceType type) {
+    XrReferenceSpaceCreateInfo refInfo = {XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
+    refInfo.poseInReferenceSpace = (XrPosef){{0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}};
+
+    switch (type)
+    {
+    case RLXR_REFERENCE_LOCAL:
+        refInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL;
+        break;
+
+    case RLXR_REFERENCE_LOCAL_FLOOR:
+        refInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL_FLOOR_EXT;
+        break;
+
+    case RLXR_REFERENCE_STAGE:
+        refInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
+        break;
+    }
+
+    XrSpace newSpace;
+    XrResult res = xrCreateReferenceSpace(rlxr.session, &refInfo, &newSpace);
+    if (XR_FAILED(res))
+    {
+        TRACELOG(LOG_WARNING, "XR: Failed to switch reference type (%s)", rlxrFormatResult(res));
+        return false;
+    }
+
+    if (rlxr.referenceSpace)
+    {
+        xrDestroySpace(rlxr.referenceSpace);
+    }
+
+    rlxr.referenceSpace = newSpace;
+    rlxr.referenceType = type;
+
+    return true;
+}
+
+rlReferenceType GetXrReference() {
+    return rlxr.referenceType;
 }
 
 //----------------------------------------------------------------------------------
