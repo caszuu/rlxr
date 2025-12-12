@@ -1111,7 +1111,6 @@ void UpdateXr() {
             return;
 
         case XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING:
-            // TODO: ref space
             break;
 
         case XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED:
@@ -1514,7 +1513,13 @@ void BeginView(unsigned int index) {
     XrSwapchainImageWaitInfo waitInfo = {XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
     waitInfo.timeout = 1000;
 
-    res = xrWaitSwapchainImage(view->colorSwapchain, &waitInfo);
+    // FIXME: better handle timeouts
+
+    do
+    {
+        res = xrWaitSwapchainImage(view->colorSwapchain, &waitInfo);
+    } while (res == XR_TIMEOUT_EXPIRED);
+
     if (XR_FAILED(res))
     {
         TRACELOG(LOG_ERROR, "XR: Failed to wait for an image from swapchain (%s)", rlxrFormatResult(res));
@@ -1522,7 +1527,11 @@ void BeginView(unsigned int index) {
 
     if (rlxr.depthSupported)
     {
-        res = xrWaitSwapchainImage(view->depthSwapchain, &waitInfo);
+        do
+        {
+            res = xrWaitSwapchainImage(view->depthSwapchain, &waitInfo);
+        } while (res == XR_TIMEOUT_EXPIRED);
+
         if (XR_FAILED(res))
         {
             TRACELOG(LOG_ERROR, "XR: Failed to wait for an image from swapchain (%s)", rlxrFormatResult(res));
