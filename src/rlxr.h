@@ -1108,7 +1108,7 @@ void UpdateXr() {
             TRACELOG(LOG_ERROR, "XR: Instance loss pending; rlxr disconnected.");
 
             rlxr.state = XR_SESSION_STATE_LOSS_PENDING;
-            return;
+            break;
 
         case XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING:
             break;
@@ -1127,6 +1127,7 @@ void UpdateXr() {
                 if (XR_FAILED(res))
                 {
                     TRACELOG(LOG_ERROR, "XR: Failed to begin session (%s)", rlxrFormatResult(res));
+                    break;
                 }
             }
             if (state->state == XR_SESSION_STATE_STOPPING)
@@ -1135,6 +1136,7 @@ void UpdateXr() {
                 if (XR_FAILED(res))
                 {
                     TRACELOG(LOG_ERROR, "XR: Failed to end session (%s)", rlxrFormatResult(res));
+                    break;
                 }
             }
             if (state->state == XR_SESSION_STATE_EXITING)
@@ -1142,21 +1144,24 @@ void UpdateXr() {
                 TRACELOG(LOG_INFO, "XR: Session exiting; rlxr disconnected.");
 
                 rlxr.state = XR_SESSION_STATE_EXITING;
-                return;
+                break;
             }
             if (state->state == XR_SESSION_STATE_LOSS_PENDING)
             {
                 TRACELOG(LOG_ERROR, "XR: Session loss pending; rlxr disconnected.");
 
                 rlxr.state = XR_SESSION_STATE_LOSS_PENDING;
-                return;
+                break;
             }
 
+            TRACELOG(LOG_DEBUG, "XR: Session state changed: %d -> %d", rlxr.state, state->state);
             rlxr.state = state->state;
+
             break;
         }
 
         default:
+            TRACELOG(LOG_DEBUG, "XR: received unknown event type %d, ignoring", ev.type);
             break;
         }
     }
@@ -1451,6 +1456,8 @@ int BeginXrMode() {
 
     rlxr.frameActive = true;
     rlxr.viewActiveIndex = ~0;
+
+    if (!rlxr.frameState.shouldRender) return 0; // runtime requested to not render anything, skip views for this frame
 
     return rlxr.viewCount;
 }

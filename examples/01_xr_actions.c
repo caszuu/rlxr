@@ -35,12 +35,12 @@ int main(void) {
     }
 
     // Position the XR play space and the player in the scene
-    SetXrPosition((Vector3){0.0f, 1.5f, 0.0f});
+    SetXrPosition((Vector3){0.0f, 0.0f, 0.0f});
 
     // Define a camera to mirror the XR view for the flatscreen window
     Camera camera = {0};
-    camera.position = (Vector3){0.0f, 1.5f, 0.0f}; // Camera position
-    camera.target = (Vector3){0.0f, 0.0f, 0.0f};   // Camera looking at point
+    camera.position = (Vector3){0.0f, 1.5f, 1.5f}; // Camera position
+    camera.target = (Vector3){0.0f, 1.0f, 0.0f};   // Camera looking at point
     camera.up = (Vector3){0.0f, 1.0f, 0.0f};       // Camera up vector (rotation towards target)
     camera.fovy = 45.0f;                           // Camera field-of-view Y
     camera.projection = CAMERA_PERSPECTIVE;        // Camera projection type
@@ -70,10 +70,18 @@ int main(void) {
     int pose = rlLoadAction("controller-pose", RLXR_TYPE_POSE, RLXR_HAND_BOTH);
     rlSuggestBinding(pose, RLXR_COMPONENT_GRIP_POSE);
 
-    // note: we used the grip pose, but the aim pose is also available (see https://registry.khronos.org/OpenXR/specs/1.1/html/xrspec.html#semantic-paths-standard-pose-identifiers)
+    // note: we used the grip pose, but other pose types are also available (see https://registry.khronos.org/OpenXR/specs/1.1/html/xrspec.html#semantic-paths-standard-pose-identifiers)
+    //       Most often you'll encounter either the grip pose or the aim pose. The grip pose
+    //       is ideal for visually holding items, while the aim pose is ideal when the pose is
+    //       used for aiming an object (eg. a gun) by the user.
+    //
+    //       Both poses can be bound to two isolated actions (eg. hold-pose + aim-pose) and then
+    //       which between them in app code as needed.
+
     // WARNING: all actions and bindings must be created and suggested *before* the first UpdateXr() call
 
     // Setup text panel resources
+    //--------------------------------------------------------------------------------------
 
     RenderTexture2D panelTarget = LoadRenderTexture(800, 450);
     WorldState world = {};
