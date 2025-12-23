@@ -53,8 +53,8 @@ RLAPI void SetXrPosition(Vector3 pos);        // sets the offset of the referenc
 RLAPI void SetXrOrientation(Quaternion quat); // sets the offset rotation of the reference space
 RLAPI rlPose GetXrPose();                     // fetches the current reference frame offsets
 
-RLAPI bool SetXrReference(rlReferenceType type); // requests a different reference space (tracking) type, returns true if supported and sucessful, false otherwise
-RLAPI rlReferenceType GetXrReference();          // gets the currently active reference space type, by default LOCAL_FLOOR is choosen on init, falling back to LOCAL if LOCAL_FLOOR is not supported
+RLAPI bool SetXrReference(rlReferenceType type); // requests a different reference space (tracking) type, returns true if supported and successful, false otherwise
+RLAPI rlReferenceType GetXrReference();          // gets the currently active reference space type, by default LOCAL_FLOOR is chosen on init, falling back to LOCAL if LOCAL_FLOOR is not supported
 ```
 
 Rendering API:
@@ -86,5 +86,5 @@ RLAPI rlVector2State rlGetVector2State(unsigned int action, rlActionDevices devi
 RLAPI rlPoseState rlGetPoseState(unsigned int action, rlActionDevices device);
 
 // Action Drivers
-RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long duration, float amplitude); // duration in nanoseconds (-1 == min supported duration by runtime), aplitude in range [0.0, 1.0]
+RLAPI void rlApplyHaptic(unsigned int action, rlActionDevices device, long duration, float amplitude); // duration in nanoseconds (-1 == min supported duration by runtime), amplitude in range [0.0, 1.0]
 ```
