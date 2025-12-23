@@ -3,7 +3,7 @@
 
 `rlxr` features a raylib-like subset of the OpenXR API that supports device-independent rendering and interaction with the binding based OpenXR input system.
 
-Currently only Windows, Linux (`Xlib` only) and Android (soon) platforms are supported. While OpenGL 3.3 might work, it's recommended to build your project against OpenGL 4.3 as some OpenXR runtimes might require it.
+Currently Windows, Linux (`Xlib` only) and Android platforms are supported. While OpenGL 3.3 might work, it's recommended to build your project against OpenGL 4.3 as some OpenXR runtimes might require it.
 
 Feature support:
 - [x] XR Fullscreen Session
@@ -11,10 +11,10 @@ Feature support:
 - [x] View / Reference Pose API
 - [x] Actions and Bindings
 - [x] Interaction Profiles
+- [x] Android / GLES support
 
 - [ ] XR Overlay Session (`XR_EXTX_overlay`)
 - [ ] AR Session (XR Environment Blend Mode API)
-- [ ] Android / GLES support
 
 ## Usage and Building
 
@@ -22,9 +22,12 @@ As for other single-header modules, simply include `rlxr.h` with `RLXR_IMPLEMENT
 ```c
 #include "raylib.h"
 
+#define RLXR_APP_NAME "My Project"
 #define RLXR_IMPLEMENTATION
 #include "rlxr.h"
 ```
+
+This will give you access to the `rlxr` APIs, to see how to use them look though the handful of `examples/` which have some basic explanations on how to interact with an XR device.
 
 To build a project with `rlxr` embedded, the OpenXR Loader together with platform specific dependencies will have to be linked. OpenXR can be installed using your distros `openxr` package or with the OpenXR-SDK for Windows. A helper CMake script is present at the root of the repository that will find and link all dependencies for you.
 
@@ -33,6 +36,8 @@ If you're using CMake for your project, simply clone the repo and link it to you
 add_subdirectory(rlxr)
 target_link_libraries(my_project PRIVATE rlxr)
 ```
+
+To build a project targeting Android, see [building raymob with rlxr](docs/android.md).
 
 ## API Cheatsheet
 

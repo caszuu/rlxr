@@ -1,0 +1,197 @@
+diff --git a/app/build.gradle b/app/build.gradle
+index 468ddfe..3811b86 100644
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -158,6 +158,7 @@ android {
+     buildFeatures {
+         buildConfig true
+         viewBinding true
++        prefab true
+     }
+ }
+ 
+@@ -168,8 +169,8 @@ android {
+ // These dependencies will be automatically downloaded and integrated into the build process.
+ // To add a new dependency, use the 'implementation' or 'api' keyword followed by the library's coordinate or name.
+ 
+-dependencies {
+-
+-}
+-
+ */
++
++dependencies {
++    implementation 'org.khronos.openxr:openxr_loader_for_android:1.1.54'
++}
+\ No newline at end of file
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index a6ca383..d60e2a2 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -33,9 +33,19 @@
+             android:resizeableActivity="false"
+             android:clearTaskOnLaunch="true"
+             android:exported="true">
++
++            <!-- Standard Khronos OpenXR launcher intent filter. -->
++            <intent-filter>
++                <action android:name="android.intent.action.MAIN"/>
++                <category android:name="android.intent.category.${APP_CATEGORY}"/>
++                <category android:name="org.khronos.openxr.intent.category.IMMERSIVE_HMD"/>
++            </intent-filter>
++
++            <!-- Meta Quest-specific non-standard intent filter. -->
+             <intent-filter>
+-                <action android:name="android.intent.action.MAIN" />
+-                <category android:name="android.intent.category.${APP_CATEGORY}" />
++                <action android:name="android.intent.action.MAIN"/>
++                <category android:name="android.intent.category.${APP_CATEGORY}"/>
++                <category android:name="com.oculus.intent.category.VR"/>
+             </intent-filter>
+ 
+             <meta-data
+diff --git a/app/src/main/cpp/CMakeLists.txt b/app/src/main/cpp/CMakeLists.txt
+index d6f4a64..16b74aa 100644
+--- a/app/src/main/cpp/CMakeLists.txt
++++ b/app/src/main/cpp/CMakeLists.txt
+@@ -14,6 +14,7 @@ project("${APP_LIB_NAME}")
+ # Include raylib and raymob as a subdirectories
+ add_subdirectory(${CMAKE_SOURCE_DIR}/deps/raylib)
+ add_subdirectory(${CMAKE_SOURCE_DIR}/deps/raymob)
++add_subdirectory(${CMAKE_SOURCE_DIR}/deps/rlxr)
+ 
+ # Fetch all source files for your project (recursively), excluding 'deps' source files
+ file(GLOB_RECURSE SOURCES "${CMAKE_SOURCE_DIR}/*.c" "${CMAKE_SOURCE_DIR}/*.cpp")
+@@ -41,4 +42,4 @@ target_include_directories(${APP_LIB_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/deps/ray
+ target_include_directories(${APP_LIB_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/deps/raymob")
+ 
+ # Link required libraries to the native application
+-target_link_libraries(${APP_LIB_NAME} raylib raymoblib)
++target_link_libraries(${APP_LIB_NAME} raylib raymoblib rlxr)
+diff --git a/app/src/main/cpp/main.c b/app/src/main/cpp/main.c
+index c31423a..e7adf74 100644
+--- a/app/src/main/cpp/main.c
++++ b/app/src/main/cpp/main.c
+@@ -1,6 +1,6 @@
+ /*******************************************************************************************
+ *
+-*   raylib [core] example - Basic window
++*   rlxr example - hello rlxr
+ *
+ *   Welcome to raylib!
+ *
+@@ -13,47 +13,95 @@
+ *   Example licensed under an unmodified zlib/libpng license, which is an OSI-certified,
+ *   BSD-like license that allows static linking with closed source software
+ *
+-*   Copyright (c) 2013-2023 Ramon Santamaria (@raysan5) and reviewed by Victor Le Juez
+-*
+ ********************************************************************************************/
+ 
+ #include "raymob.h" // This header can replace 'raylib.h' and includes additional functions related to Android.
+ 
++// Set the OpenXR application name, it will be visible
++// in the runtime UI and runtime settings will be tied to this name.
++#define RLXR_APP_NAME "Hello rlxr"
++
++#define RLXR_IMPLEMENTATION
++#include "rlxr.h"
++
++static void drawScene();
++
+ //------------------------------------------------------------------------------------
+ // Program main entry point
+ //------------------------------------------------------------------------------------
+-int main(void)
+-{
++int main(void) {
+     // Initialization
+     //--------------------------------------------------------------------------------------
+-    InitWindow(0, 0, "raylib [core] example - basic window");
+-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+-    //--------------------------------------------------------------------------------------
++    InitWindow(0, 0, "Hello rlxr");
+ 
+-    // Main game loop
+-    while (!WindowShouldClose())    // Detect window close button or ESC key
++    // Initialize the XR runtime and rlxr resources, exit if no XR runtime found
++    bool success = InitXr();
++    if (!success)
++    {
++        return -1;
++    }
++
++    // Position the XR play space and the player in the scene
++    SetXrPosition((Vector3){0.0f, 0.0f, 1.5f});
++
++    // let the XR runtime pace the frame loop on its own (blocks in UpdateXr)
++    SetTargetFPS(-1);
++
++    while (!WindowShouldClose() && IsXrConnected())
+     {
+         // Update
+         //----------------------------------------------------------------------------------
++
++        // Update internal XR event loop, this needs to be done every frame before BeginXrMode()
++        UpdateXr();
++
+         // TODO: Update your variables here
++
++        // Draw to XR
+         //----------------------------------------------------------------------------------
+ 
+-        // Draw
++        // Begin new XR frame, the number of views (cameras) to render requested by the XR runtime is returned.
++        int views = BeginXrMode();
++
++        // note: currently the number of views can be either 2 (stereoscopic rendering) or 0 (no rendering required, eg. the app is not visible in headset). View index 0 will
++        //       always be the left eye and index 1 will always be the right eye.
++
++        for (int i = 0; i < views; i++)
++        {
++            // Begin a XR view, this will setup the framebuffer and 3D rendering from the perspective of the view
++            BeginView(i);
++
++                ClearBackground(RAYWHITE);
++                drawScene();
++
++            // Release the XR view to the runtime and disable 3D rendering
++            EndView();
++        }
++
++        // Release the frame to the runtime and show it on device
++        EndXrMode();
++
++        // Draw to screen
+         //----------------------------------------------------------------------------------
+-        BeginDrawing();
+ 
+-        ClearBackground(RAYWHITE);
++        BeginDrawing();
+ 
+-        DrawText("Congrats! You created your first window!", 190, 200, 20, LIGHTGRAY);
++            // flatscreen window is not visible when running an Immersive Android application, do not waste resources on rendering to an invisible window.
+ 
+         EndDrawing();
+-        //----------------------------------------------------------------------------------
+     }
+ 
+     // De-Initialization
+     //--------------------------------------------------------------------------------------
+-    CloseWindow();        // Close window and OpenGL context
+-    //--------------------------------------------------------------------------------------
++    CloseXr(); // clean up and close connection with XR runtime
++    CloseWindow();
++}
++
++static void drawScene() {
++    Vector3 cubePosition = {0.0f, 0.0f, 0.0f};
++
++    DrawCube(cubePosition, 0.5f, 0.5f, 0.5f, RED);
++    DrawCubeWires(cubePosition, 0.5f, 0.5f, 0.5f, MAROON);
+ 
+-    return 0;
+-}
+\ No newline at end of file
++    DrawGrid(10, 0.25f);
++}

@@ -14,7 +14,14 @@
  *      #define RLXR_ENGINE_NAME "My Engine"
  *          Sets the string reported to the OpenXR runtime as the engine name.
  *          It's discouraged to redefine this as for all intents and purposes,
- *          this should be set to the dafault value of "raylib / rlxr".
+ *          this should be set to the default value of "raylib / rlxr".
+ *
+ *      #define RLXR_ALLOW_EVENT_WAITING
+ *          By default rlxr enables the `FLAG_WINDOW_ALWAYS_RUN` flag when a
+ *          running headset is detected and disables it when the headset disconnects.
+ *          This is done to prevent the headset view freezing when the game window
+ *          is not visible or focused but it might interfere with app logic, in that
+ *          case this behavior can be disabled.
  */
 
 #ifndef RLXR_H
@@ -69,6 +76,10 @@
         #define TRACELOG(level, ...) TraceLog(level, __VA_ARGS__)
         #define TRACELOGD(...) TraceLog(LOG_DEBUG, __VA_ARGS__)
     #endif
+#endif
+
+#ifdef RLXR_STANDALONE
+    #define RLXR_ALLOW_EVENT_WAITING
 #endif
 
 #define RLXR_MAX_SPACES_PER_ACTION 2
@@ -966,7 +977,7 @@ static bool rlxrInitSession() {
     // init swapchains
 
     int64_t colorFormat = rlxrChooseSwapchainFormat(GL_SRGB8_ALPHA8, true);
-    int64_t depthFormat = rlxrChooseSwapchainFormat(GL_DEPTH_COMPONENT16, false);
+    int64_t depthFormat = rlxrChooseSwapchainFormat(GL_DEPTH_COMPONENT24, false);
 
     rlxr.depthSupported = true;
     if (depthFormat < 0)
@@ -1292,6 +1303,10 @@ void UpdateXr() {
                     TRACELOG(LOG_ERROR, "XR: Failed to begin session (%s)", rlxrFormatResult(res));
                     break;
                 }
+#ifndef RLXR_ALLOW_EVENT_WAITING
+                // prevent blocking frame loop on events when running in xr
+                SetWindowState(FLAG_WINDOW_ALWAYS_RUN);
+#endif
             }
             if (state->state == XR_SESSION_STATE_STOPPING)
             {
@@ -1301,6 +1316,10 @@ void UpdateXr() {
                     TRACELOG(LOG_ERROR, "XR: Failed to end session (%s)", rlxrFormatResult(res));
                     break;
                 }
+#ifndef RLXR_ALLOW_EVENT_WAITING
+                // reallow blocking frame loop on events
+                ClearWindowState(FLAG_WINDOW_ALWAYS_RUN);
+#endif
             }
             if (state->state == XR_SESSION_STATE_EXITING)
             {
@@ -1791,7 +1810,7 @@ void EndView() {
     rlDisableFramebuffer();
     rlDisableDepthTest();
 
-#ifdef RAYLIB_H
+#ifndef RLXR_STANDALONE
     // a hacky way to tell raylib to restore its default window viewport
     EndTextureMode();
 #endif
