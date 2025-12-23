@@ -40,8 +40,8 @@ int main(void) {
     // Setup a Reference type
     //----------------------------------------------------------------------------------
 
-    // When using positions tracked by a XR device, they must always be _relative_ to a pre-defined point in real world space for them to have any meaning.
-    // In OpenXR, this point is called a _reference space_ and it defines what the _coordinate origin_ maps to in the real world play space, OpenXR offers
+    // When using positions tracked by a XR device, they must always be relative to a pre-defined point in real world space for them to have any meaning.
+    // In OpenXR, this point is called a _reference space_ and it defines what the coordinate origin maps to in the real world play space, OpenXR offers
     // 3 types of reference space _types_ with varying guarantees and availability.
 
     // The LOCAL reference type is the most basic one and is *always* available. (will always return true)
@@ -51,14 +51,14 @@ int main(void) {
 
     // The LOCAL_FLOOR reference type is an extension of LOCAL. It defines the coordinate origin same as LOCAL
     // but with the exception that Y == 0 is the best estimate of where the users floor is. This reference type
-    // should be prefered in most cases and is the default choosen on init if available.
+    // should be preferred in most cases and is the default chosen on init if available.
     //
     // It is available on the *vast* majority of XR devices, but it might be missing on some older hardware.
     bool localFloorSuccess = SetXrReference(RLXR_REFERENCE_LOCAL_FLOOR);
 
     // The STAGE reference type is more specialized. It defines the coordinate origin as the center of the users
     // play space boundary for X and Z and the floor level for Y. This reference type is useful for full room-scale
-    // expiriences where the virtual world is centered around the users available play area. As a side effect though,
+    // experiences where the virtual world is centered around the users available play area. As a side effect though,
     // headset re-centering will *not* do anything as by definition the reference origin cannot be moved until the user
     // changes their play space boundaries.
     //

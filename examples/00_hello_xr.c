@@ -1,7 +1,7 @@
 #include "raylib.h"
 #include "raymath.h"
 
-// Configure the XR application name, it will be visible
+// Set the OpenXR application name, it may be visible
 // in the runtime UI and runtime settings will be tied to this name.
 #define RLXR_APP_NAME "Hello rlxr"
 

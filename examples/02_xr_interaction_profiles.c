@@ -53,9 +53,9 @@ int main(void) {
     // _interaction profiles_.
     //
     // Interaction profiles are a way of _binding_ actions to hardware and vendor specific
-    // components directly in a forward compatible manor. An app can provide bidnings for _all_
+    // components directly in a forward compatible manor. An app can provide bindings for _all_
     // profiles it supports and the XR runtime is then free to choose which profile to use and to
-    // potentialy remap them for newer hardware. (eg. old oculus profiles for newer meta headsets)
+    // potentially remap them for newer hardware. (eg. old oculus profiles for newer meta headsets)
     //
     // This gives us full access to the controllers, but we also need to express them using
     // OpenXR paths specific to each profile. All supported profiles by OpenXR can be found in the

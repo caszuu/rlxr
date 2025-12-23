@@ -331,12 +331,13 @@ typedef struct {
     // session state //
 
     XrInstance instance;
+    XrSystemId system;
     XrSession session;
 
     XrSessionState state;
 
-    XrSystemId system;
     XrSystemProperties systemProps;
+    XrInstanceProperties instanceProps;
 
     XrViewConfigurationType viewConfig;
     unsigned int viewCount;
@@ -560,6 +561,14 @@ static bool rlxrInitInstance() {
         return false;
     }
 
+    rlxr.instanceProps = (XrInstanceProperties){XR_TYPE_INSTANCE_PROPERTIES};
+    res = xrGetInstanceProperties(rlxr.instance, &rlxr.instanceProps);
+    if (XR_FAILED(res))
+    {
+        TRACELOG(LOG_ERROR, "XR: failed to get instance properties.");
+        return false;
+    }
+
     // get graphics binding pfns
 
     res = xrGetInstanceProcAddr(rlxr.instance, "xrGetOpenGLGraphicsRequirementsKHR", (PFN_xrVoidFunction *)&rlxr.pfn.GetOpenGLGraphicsRequirementsKHR);
@@ -716,10 +725,9 @@ static bool rlxrInitSession() {
     //         - GL/Win32 (fetching current WGL context)
     //         - GL/Xlib (fetching current GLX context)
     //
-    // - note on wayland: The most widely used way to enable wayland support is currently the XR_MDNX_egl_enable extension, but
-    //                    GraphicsBindingsOpenGLWaylandKHR *might* also be supported in the future, see https://gitlab.freedesktop.org/monado/monado/-/merge_requests/2527
-    //
-    //                    For now GraphicsBindingsOpenGLWaylandKHR is implemented but disabled as it would fail on most if not all runtimes.
+    // - note on wayland: While the GraphicsBindingOpenGLWaylandKHR is implemented, it is almost universaly unsupported by runtimes. The most widely
+    //                    used way to enable wayland support is currently the XR_MDNX_egl_enable extension, but that is Monado only. For now GraphicsBindingOpenGLWaylandKHR
+    //                    is disabled as it would fail on most if not all runtimes and will most likely be removed at some point.
 
     rlxrGraphicsBindingOpenGL rlglInfo;
     rlxrGraphicsContext ctx;
@@ -977,9 +985,10 @@ static bool rlxrInitSession() {
 
     TRACELOG(LOG_INFO, "XR: OpenXR session initialized sucessufully");
     TRACELOG(LOG_INFO, "XR: System information:");
-    TRACELOG(LOG_INFO, "    > Name: %s", rlxr.systemProps.systemName);
-    TRACELOG(LOG_INFO, "    > View size: %d x %d", rlxr.viewProps[0].recommendedImageRectWidth, rlxr.viewProps[0].recommendedImageRectHeight);
-    TRACELOG(LOG_INFO, "    > View count: %d", rlxr.viewCount);
+    TRACELOG(LOG_INFO, "    > Device:          %s", rlxr.systemProps.systemName);
+    TRACELOG(LOG_INFO, "    > View size:       %d x %d", rlxr.viewProps[0].recommendedImageRectWidth, rlxr.viewProps[0].recommendedImageRectHeight);
+    TRACELOG(LOG_INFO, "    > Runtime Name:    %s", rlxr.instanceProps.runtimeName);
+    TRACELOG(LOG_INFO, "    > Runtime Version: %d.%d.%d", XR_VERSION_MAJOR(rlxr.instanceProps.runtimeVersion), XR_VERSION_MINOR(rlxr.instanceProps.runtimeVersion), XR_VERSION_PATCH(rlxr.instanceProps.runtimeVersion));
 
     return true;
 }
