@@ -188,8 +188,8 @@ RLAPI void SetXrPosition(Vector3 pos);        // sets the offset of the referenc
 RLAPI void SetXrOrientation(Quaternion quat); // sets the offset rotation of the reference space
 RLAPI rlPose GetXrPose();                     // fetches the current reference frame offsets
 
-RLAPI bool SetXrReference(rlReferenceType type); // requests a different reference space (tracking) type, returns true if supported and sucessful, false otherwise
-RLAPI rlReferenceType GetXrReference();          // gets the currently active reference space type, by default LOCAL_FLOOR is choosen on init, falling back to LOCAL if LOCAL_FLOOR is not supported
+RLAPI bool SetXrReference(rlReferenceType type); // requests a different reference space (tracking) type, returns true if supported and successful, false otherwise
+RLAPI rlReferenceType GetXrReference();          // gets the currently active reference space type, by default LOCAL_FLOOR is chosen on init, falling back to LOCAL if LOCAL_FLOOR is not supported
 
 // View Rendering
 RLAPI int BeginXrMode();                  // returns the number of views that are requested by the xr runtime (returns 0 if rendering is not required by the runtime, eg. app is not visible to user)
@@ -302,8 +302,8 @@ typedef XrSwapchainImageOpenGLKHR rlxrSwapchainImage;
 #elif defined(XR_USE_GRAPHICS_API_OPENGL_ES)
     #include <GLES3/gl3.h> // required for format enums
 
-typedef XrSwapchainImageOpenGLESKHR rlxrSwapchainImage;
     #define RLXR_ACTIVE_SWAPCHAIN_IMAGE_TYPE XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_ES_KHR
+typedef XrSwapchainImageOpenGLESKHR rlxrSwapchainImage;
 #else
     #error "No supported graphics api found."
 #endif
@@ -482,7 +482,7 @@ static const char *rlxrFormatResult(XrResult res) {
 }
 
 //----------------------------------------------------------------------------------
-// Module Functions Definition - OpenXR state managment
+// Module Functions Definition - OpenXR state management
 //----------------------------------------------------------------------------------
 
 static bool rlxrInitLoader() {
@@ -495,7 +495,6 @@ static bool rlxrInitLoader() {
 #ifdef XR_USE_PLATFORM_ANDROID
     {
         // attach to the JNI and JVM which is required by the OpenXR Loader
-        // JNIEnv* env = AttachCurrentThread(); TODO: is this required?
         struct android_app *android = GetAndroidApp();
 
         PFN_xrInitializeLoaderKHR pfnXrInitializeLoaderKHR = NULL;
@@ -542,7 +541,7 @@ static bool rlxrEnumerateExtensions(XrInstanceCreateInfo *info) {
     XrResult res = xrEnumerateInstanceExtensionProperties(NULL, 0, &availableCount, NULL);
     if (XR_FAILED(res))
     {
-        if (!rlxrFormatInitResult(res, info)) TRACELOG(LOG_ERROR, "XR: Failed to get avaiable extensions from runtime (%d)", res);
+        if (!rlxrFormatInitResult(res, info)) TRACELOG(LOG_ERROR, "XR: Failed to get available extensions from runtime (%d)", res);
         return false;
     }
 
@@ -558,7 +557,7 @@ static bool rlxrEnumerateExtensions(XrInstanceCreateInfo *info) {
     {
         RL_FREE(available);
 
-        if (!rlxrFormatInitResult(res, info)) TRACELOG(LOG_ERROR, "XR: Failed to get avaiable extensions from runtime (%d)", res);
+        if (!rlxrFormatInitResult(res, info)) TRACELOG(LOG_ERROR, "XR: Failed to get available extensions from runtime (%d)", res);
         return false;
     }
 
@@ -583,8 +582,6 @@ static bool rlxrEnumerateExtensions(XrInstanceCreateInfo *info) {
         enabled[enabledCount++] = XR_KHR_ANDROID_CREATE_INSTANCE_EXTENSION_NAME;
         rlxr.ext.androidInstance = true;
     }
-
-        // note: if XR_KHR_android_create_instance is not supported, then it's probably not required
 #endif
 
 #if defined(XR_USE_GRAPHICS_API_OPENGL)
@@ -624,6 +621,8 @@ static bool rlxrEnumerateExtensions(XrInstanceCreateInfo *info) {
 
 static bool rlxrAddPlatformInfo(XrInstanceCreateInfo *info) {
 #ifdef XR_USE_PLATFORM_ANDROID
+    // note: if XR_KHR_android_create_instance is not supported, it's probably not required
+
     if (rlxr.ext.androidInstance)
     {
         struct android_app *android = GetAndroidApp();
@@ -847,7 +846,7 @@ static bool rlxrInitSession() {
     //       currently supported platforms are:
     //         - GL/Win32     (fetching current WGL context)
     //         - GL/Xlib      (fetching current GLX context)
-    //         - GLES/Android (fetching current EGL context and display, guessing / re-creating the config)
+    //         - GLES/Android (fetching current EGL context and display, re-creating the config)
     //
     // - note on wayland: While the GraphicsBindingOpenGLWaylandKHR is implemented, it is almost universaly unsupported by runtimes. The most widely
     //                    used way to enable wayland support is currently the XR_MDNX_egl_enable extension, but that is Monado only. For now GraphicsBindingOpenGLWaylandKHR
@@ -901,9 +900,9 @@ static bool rlxrInitSession() {
             EGL_GREEN_SIZE, 8,          // GREEN color bit depth (alternative: 6)
             EGL_BLUE_SIZE, 8,           // BLUE color bit depth (alternative: 5)
             EGL_DEPTH_SIZE, 24,         // Depth buffer size
-            // EGL_STENCIL_SIZE, 8,      // Stencil buffer size
-            // EGL_SAMPLE_BUFFERS, 0,      // Activate MSAA
-            // EGL_SAMPLES, 0,             // 4x Antialiasing if activated (Free on MALI GPUs)
+            // EGL_STENCIL_SIZE, 8,     // Stencil buffer size
+            // EGL_SAMPLE_BUFFERS, 0,   // Activate MSAA
+            // EGL_SAMPLES, 0,          // 4x Antialiasing if activated (Free on MALI GPUs)
             EGL_NONE
         };
 
@@ -1137,7 +1136,7 @@ static bool rlxrInitSession() {
 
     // log success and device info
 
-    TRACELOG(LOG_INFO, "XR: OpenXR session initialized sucessufully");
+    TRACELOG(LOG_INFO, "XR: OpenXR session initialized successfully");
     TRACELOG(LOG_INFO, "XR: System information:");
     TRACELOG(LOG_INFO, "    > Device:          %s", rlxr.systemProps.systemName);
     TRACELOG(LOG_INFO, "    > View size:       %d x %d", rlxr.viewProps[0].recommendedImageRectWidth, rlxr.viewProps[0].recommendedImageRectHeight);
@@ -1207,7 +1206,7 @@ void CloseXr() {
     xrDestroyInstance(rlxr.instance);
 
     rlxr.instance = XR_NULL_HANDLE;
-    TRACELOG(LOG_INFO, "XR: Session closed suceessfully");
+    TRACELOG(LOG_INFO, "XR: Session closed successfully");
 }
 
 static void submitSuggestedBindings() {
@@ -1731,7 +1730,7 @@ void BeginView(unsigned int index) {
     rlFramebufferAttach(view->framebuffer, view->colorImages[colorAcquiredIndex].image, RL_ATTACHMENT_COLOR_CHANNEL0, RL_ATTACHMENT_TEXTURE2D, 0);
     if (rlxr.depthSupported)
     {
-        // attach XrSwapchain depth if supprted, if not a render buffer is already attached from swapchain setup
+        // attach XrSwapchain depth if supported, if not a render buffer is already attached from swapchain setup
         rlFramebufferAttach(view->framebuffer, view->depthImages[depthAcquiredIndex].image, RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_TEXTURE2D, 0);
     }
 
@@ -1944,11 +1943,11 @@ static void appendBinding(rlxrAction *action, const char *path) {
 
     if (XR_FAILED(res))
     {
-        TRACELOG(LOG_ERROR, "XR: Failed to suggest bidning, path error (%s)", rlxrFormatResult(res));
+        TRACELOG(LOG_ERROR, "XR: Failed to suggest binding, path error (%s)", rlxrFormatResult(res));
         return;
     }
 
-    // insert new bidning
+    // insert new binding
 
     unsigned int bindingIdx = rlxr.bindingCount;
     rlxrResizeArray((void **)&rlxr.bindings, &rlxr.bindingCount, &rlxr.bindingCap, rlxr.bindingCount + 1, sizeof(XrActionSuggestedBinding));
